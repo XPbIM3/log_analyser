@@ -3,11 +3,6 @@ import numpy as np
 from scipy import interpolate
 
 
-
-
-
-
-
 class mstable:
     def __init__(self, path):
 
@@ -15,7 +10,6 @@ class mstable:
             doc = xmltodict.parse(fd.read())
 
         zvalues = doc['tableData']['table']['zValues']['#text'].replace('\n','')
-        zvalues_str = doc['tableData']['table']['zValues']['#text']
 
         zvalues = np.fromstring(zvalues, sep=' ').reshape((16,16)).astype(np.float32)
 
@@ -31,14 +25,7 @@ class mstable:
         self.xaxis = xaxis
         self.yaxis = yaxis
         self.zvalues = zvalues
-        self.zvalues_str = zvalues_str
-
-    def arr2str(self, arr):
-        return np.array2string(arr).replace(']', '').replace('[','')
 
 
 
-ve = mstable('VE.table')
-afr = mstable('afr.table')
 
-flatve = ((afr.zvalues/14.7)*ve.zvalues).astype(np.uint8)

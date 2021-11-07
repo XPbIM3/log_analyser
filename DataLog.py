@@ -1,7 +1,7 @@
 import os
 import sys
 import numpy as np
-from ImportTable import *
+from xml_test import mstable
 
 import matplotlib.pyplot as plt
 fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
@@ -16,15 +16,35 @@ DISCARD_AFTER = 5
 HITS_NEEDED = 10
 T_FULLY_WARMED = 68
 
-
+STOICH = 14.7
 
 KPA_BINS = np.linspace(10,100,16)
 RPM_BINS = np.linspace(600,6000,16)
 
-#KPA_BINS = np.array([10,16,22,28,34,40,46,52,58,64,70,76,82,88,94,100])
-#RPM_BINS  = np.array([500,900,1200,1600,2000,2300,2700,3100,3400,3800,4200,4500,4900,5300,5600,6000])
 print(RPM_BINS)
 print(KPA_BINS)
+
+
+
+
+
+def export(RPMS, KPAS, ZS):
+	with open('VE.table.template', 'r') as t:
+		templ = t.read()
+
+	xax = "\n"+("\n".join(list(map(str, RPMS.astype(np.int)))))+"\n"
+	yax = "\n"+("\n".join(list(map(str, KPAS.astype(np.int)))))+"\n"
+	zax = "\n"+str(ZS.astype(np.int)).strip('[ ]').replace('[','').replace(']', '')+"\n"
+
+
+	templ = templ.replace('_XAXIS_', xax)
+	templ = templ.replace('_YAXIS_', yax)
+	templ = templ.replace('_ZAXIS_', zax)
+
+	with open('VE_export.table', 'w') as t:
+		t.write(templ)
+
+
 
 
 
@@ -89,6 +109,22 @@ def getRpmBin(rpm):
 
 
 FILE = sys.argv[1]
+
+if len(sys.argv)==3:
+	PERCENTILE = int(sys.argv[2])
+else:
+	PERCENTILE = 50
+
+print('PERCENTILE = ', PERCENTILE)
+
+
+
+if os.path.exists('VE.table'):
+	VE_TABLE_OBJECT = mstable('VE.table')
+	grid = np.meshgrid(RPM_BINS, KPA_BINS)
+	VE_TABLE = VE_TABLE_OBJECT.func(RPM_BINS, KPA_BINS)
+
+
 f = open(FILE, 'r')
 fWstamp = f.readline().rstrip('\n')
 timestamp = f.readline().rstrip('\n')
@@ -119,6 +155,7 @@ CUR_VE = np.where(titles == 'Current VE')[0][0]
 RPM_PER_S =np.where(titles == 'rpm/s')[0][0]
 TPS = np.where(titles == 'TPS')[0][0]
 IAT = np.where(titles == 'IAT')[0][0]
+GAMMAE = np.where(titles == 'Gammae')[0][0]
 
 BARO = np.where(titles == 'Baro Pressure')[0][0]
 #do a time-shift for AFR readings.
@@ -143,7 +180,7 @@ usefullData = []
 for i, line in enumerate(data):
 	#remove anything that:
 	#	      coolT 			accelEnrich           WarmEnrich          TPSDot         DFCO                  
-	if int(line[CLT])<T_FULLY_WARMED or line[ACCENR]!='100' or line[TPSDOT]!='0' or line[DFCO]!='0' or line[RPM]=='0':
+	if int(line[CLT])<T_FULLY_WARMED or line[ACCENR]!='100' or line[TPSDOT]!='0' or line[DFCO]!='0' or line[RPM]=='0' or float(line[RPM_PER_S])<0:
 		discardFlag[i]=1
 
 
@@ -161,17 +198,14 @@ for i in range(DISCARD_BEFORE,len(discardFlag)-DISCARD_AFTER):
 
 #prepare a VE bins for statistical work
 
-AFRBins =  np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
-AFRTarBins =  np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
 VEBins =  np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
-
+flatVEBins = np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
 
 
 for i in range(KPA_BINS.size):
 	for j in range(RPM_BINS.size):
-		AFRBins[i][j] = []
-		AFRTarBins[i][j] = []
 		VEBins[i][j] = []
+		flatVEBins[i][j] = []
 
 
 
@@ -185,60 +219,64 @@ for i, line in enumerate(data):
 
 		loadbins = getKpaBin(load)
 		rpmbins = getRpmBin(rpm)
+		gammae = float(line[GAMMAE])
+		
+		current_ve = float(line[CUR_VE])
+		afr = float(line[AFR])
+		afr_target = float(line[AFR_TARGET])
+
+		coef_flat = STOICH/afr
+		flat_ve = 100*(current_ve/coef_flat)/gammae
+
+		coef = afr_target/afr
+		ve = 100*(current_ve/coef)/gammae
+
 
 		for l in loadbins:
 			for r in rpmbins:
-				AFRBins[l][r].append(float(line[AFR]))
-				AFRTarBins[l][r].append(float(line[AFR_TARGET]))
-				VEBins[l][r].append(float(line[CUR_VE]))
+				VEBins[l][r].append(ve)
+				flatVEBins[l][r].append(flat_ve)
 
 
 # aquire median for bins
-AFRmed = np.ones((KPA_BINS.size,RPM_BINS.size), dtype = float)
-STDdev = np.ones((KPA_BINS.size,RPM_BINS.size), dtype = float)
-AFRTarmed = np.ones((KPA_BINS.size,RPM_BINS.size), dtype = float)
 VEmed = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = float)
+flatVEmed = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = float)
+std_dev = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = float)
+std_dev_flat = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = float)
 
 
 for i in range(KPA_BINS.size):
 	for j in range(RPM_BINS.size):
-		if (AFRBins[i][j]!=[] and len(AFRBins[i][j])>HITS_NEEDED):
-			AFRmed[i][j]=np.percentile(AFRBins[i][j],50)
-			STDdev[i][j] = np.std(AFRBins[i][j])
-			AFRTarmed[i][j]=np.percentile(AFRTarBins[i][j],50)
-			VEmed[i][j]=np.percentile(VEBins[i][j],50)
+		if (VEBins[i][j]!=[] and len(VEBins[i][j])>HITS_NEEDED):
+			VEmed[i][j]=np.percentile(VEBins[i][j],PERCENTILE)
+			flatVEmed[i][j]=np.percentile(flatVEBins[i][j],PERCENTILE)
+			std_dev[i][j] = np.std(VEBins[i][j])
+			std_dev_flat[i][j] = np.std(flatVEBins[i][j])
 
-#AFRmed = np.flip(AFRmed, 0)
-#AFRTarmed = np.flip(AFRTarmed, 0)
-#VEmed = np.flip(VEmed, 0)
-#STDdev = np.flip(STDdev, 0)
-
-
-
-print('STDDev:')
-print (STDdev)
-
-print('AFRs:')
-print (AFRmed)
-
-print('AFRTargets:')
-print (AFRTarmed)
-
-print('% more fuel now:')
-corrs = AFRTarmed/AFRmed
-print(AFRTarmed/AFRmed)
 
 print('VEs:')
-print (VEmed)
+print (np.flipud(VEmed.astype(np.uint8)))
 
 
-stoich = np.ones((16,16), dtype=np.float)*14.7
-coef = AFRmed/stoich
-VE_flat = VEmed * coef
+print('flatVEs:')
+print (np.flipud(flatVEmed.astype(np.uint8)))
 
-print('flat VEs:')
-print (VE_flat)
 
-RPM_BINS, KPA_BINS = np.meshgrid(RPM_BINS, KPA_BINS)
-surf = ax.plot_surface(RPM_BINS, KPA_BINS, VE_flat, linewidth=0, antialiased=False)
-plt.show()
+VEmed_filled = VEmed.copy()
+VEmed_filled[VEmed_filled==0] = VE_TABLE[VEmed_filled==0]
+
+print('VE filled')
+print(VEmed_filled.astype(np.uint8))
+
+
+
+#print('std:')
+#print (np.flipud(std_dev))
+#print('std_flat:')
+#print (np.flipud(std_dev_flat))
+#RPM_BINS, KPA_BINS = np.meshgrid(RPM_BINS, KPA_BINS)
+#surf = ax.plot_surface(RPM_BINS, KPA_BINS, flatVEmed, linewidth=0, antialiased=False)
+#plt.show()
+
+
+export(RPM_BINS, KPA_BINS, VEmed_filled)

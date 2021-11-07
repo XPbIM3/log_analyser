@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<tableData xmlns="http://www.EFIAnalytics.com/:table">
+<bibliography author="EFI Analytics - philip.tobin@yahoo.com" company="EFI Analytics, copyright 2010, All Rights Reserved." writeDate="Sun Nov 07 04:51:14 YEKT 2021"/>
+<versionInfo fileFormat="1.0"/>
+<table cols="16" rows="16">
+<xAxis cols="16" name="rpm">_XAXIS_</xAxis>
+<yAxis name="fuelLoad" rows="16">_YAXIS_</yAxis>
+<zValues cols="16" rows="16">_ZAXIS_</zValues>
+</table>
+</tableData>
