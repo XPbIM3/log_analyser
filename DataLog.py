@@ -12,7 +12,7 @@ np.set_printoptions(precision = 2, linewidth = 150, suppress = True)
 
 SHIFT_AFR = 1
 DISCARD_BEFORE = 0
-DISCARD_AFTER = 5
+DISCARD_AFTER = 10
 HITS_NEEDED = 10
 T_FULLY_WARMED = 68
 
@@ -113,7 +113,7 @@ FILE = sys.argv[1]
 if len(sys.argv)==3:
 	PERCENTILE = int(sys.argv[2])
 else:
-	PERCENTILE = 50
+	PERCENTILE = 75
 
 print('PERCENTILE = ', PERCENTILE)
 
@@ -180,7 +180,7 @@ usefullData = []
 for i, line in enumerate(data):
 	#remove anything that:
 	#	      coolT 			accelEnrich           WarmEnrich          TPSDot         DFCO                  
-	if int(line[CLT])<T_FULLY_WARMED or line[ACCENR]!='100' or line[TPSDOT]!='0' or line[DFCO]!='0' or line[RPM]=='0' or float(line[RPM_PER_S])<0:
+	if int(line[CLT])<T_FULLY_WARMED or line[ACCENR]!='100' or line[TPSDOT]!='0' or line[DFCO]!='0' or line[RPM]=='0' or float(line[RPM_PER_S])<-100:
 		discardFlag[i]=1
 
 
@@ -258,8 +258,8 @@ print('VEs:')
 print (np.flipud(VEmed.astype(np.uint8)))
 
 
-print('flatVEs:')
-print (np.flipud(flatVEmed.astype(np.uint8)))
+#print('flatVEs:')
+#print (np.flipud(flatVEmed.astype(np.uint8)))
 
 
 VEmed_filled = VEmed.copy()
