@@ -200,12 +200,13 @@ for i in range(DISCARD_BEFORE,len(discardFlag)-DISCARD_AFTER):
 
 VEBins =  np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
 flatVEBins = np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
-
+error = np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
 
 for i in range(KPA_BINS.size):
 	for j in range(RPM_BINS.size):
 		VEBins[i][j] = []
 		flatVEBins[i][j] = []
+		error[i][j]=[]
 
 
 
@@ -236,6 +237,7 @@ for i, line in enumerate(data):
 			for r in rpmbins:
 				VEBins[l][r].append(ve)
 				flatVEBins[l][r].append(flat_ve)
+				error[l][r].append(coef)
 
 
 # aquire median for bins
@@ -243,30 +245,35 @@ VEmed = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = float)
 flatVEmed = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = float)
 std_dev = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = float)
 std_dev_flat = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = float)
-
+error_med = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = float)
 
 for i in range(KPA_BINS.size):
 	for j in range(RPM_BINS.size):
 		if (VEBins[i][j]!=[] and len(VEBins[i][j])>HITS_NEEDED):
 			VEmed[i][j]=np.percentile(VEBins[i][j],PERCENTILE)
 			flatVEmed[i][j]=np.percentile(flatVEBins[i][j],PERCENTILE)
+			error_med[i][j]=np.percentile(error[i][j], 50)
 			std_dev[i][j] = np.std(VEBins[i][j])
 			std_dev_flat[i][j] = np.std(flatVEBins[i][j])
 
 
-print('VEs:')
+print('VEs from VE.table:')
+print (np.flipud(VE_TABLE.astype(np.uint8)))
+
+
+print('VEs from log:')
 print (np.flipud(VEmed.astype(np.uint8)))
-
-
-#print('flatVEs:')
-#print (np.flipud(flatVEmed.astype(np.uint8)))
 
 
 VEmed_filled = VEmed.copy()
 VEmed_filled[VEmed_filled==0] = VE_TABLE[VEmed_filled==0]
 
 print('VE filled')
-print(VEmed_filled.astype(np.uint8))
+print(np.flipud(VEmed_filled.astype(np.uint8)))
+
+
+print('% more fuel')
+print(np.flipud(error_med))
 
 
 
