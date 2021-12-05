@@ -19,7 +19,7 @@ T_FULLY_WARMED = 68
 STOICH = 14.7
 
 KPA_BINS = np.linspace(10,100,16)
-RPM_BINS = np.linspace(600,6000,16)
+RPM_BINS = np.linspace(400,7000,16)
 
 print(RPM_BINS)
 print(KPA_BINS)
@@ -180,7 +180,7 @@ usefullData = []
 for i, line in enumerate(data):
 	#remove anything that:
 	#	      coolT 			accelEnrich           WarmEnrich          TPSDot         DFCO                  
-	if int(line[CLT])<T_FULLY_WARMED or line[ACCENR]!='100' or line[TPSDOT]!='0' or line[DFCO]!='0' or line[RPM]=='0' or float(line[RPM_PER_S])<-100:
+	if int(line[CLT])<T_FULLY_WARMED or line[ACCENR]!='100' or line[TPSDOT]!='0' or line[DFCO]!='0' or line[RPM]=='0':
 		discardFlag[i]=1
 
 
@@ -227,10 +227,10 @@ for i, line in enumerate(data):
 		afr_target = float(line[AFR_TARGET])
 
 		coef_flat = STOICH/afr
-		flat_ve = 100*(current_ve/coef_flat)/gammae
+		flat_ve = (current_ve/coef_flat)
 
 		coef = afr_target/afr
-		ve = 100*(current_ve/coef)/gammae
+		ve = (current_ve/coef)
 
 
 		for l in loadbins:
@@ -246,10 +246,13 @@ flatVEmed = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = float)
 std_dev = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = float)
 std_dev_flat = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = float)
 error_med = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = float)
+binlen = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = int)
+
 
 for i in range(KPA_BINS.size):
 	for j in range(RPM_BINS.size):
 		if (VEBins[i][j]!=[] and len(VEBins[i][j])>HITS_NEEDED):
+			binlen[i][j] = len(VEBins[i][j])
 			VEmed[i][j]=np.percentile(VEBins[i][j],PERCENTILE)
 			flatVEmed[i][j]=np.percentile(flatVEBins[i][j],PERCENTILE)
 			error_med[i][j]=np.percentile(error[i][j], 50)
@@ -276,9 +279,13 @@ print('% more fuel')
 print(np.flipud(error_med))
 
 
+print('binlen')
+print(np.flipud(binlen))
 
-#print('std:')
-#print (np.flipud(std_dev))
+print('std:')
+print (np.flipud(std_dev))
+
+
 #print('std_flat:')
 #print (np.flipud(std_dev_flat))
 #RPM_BINS, KPA_BINS = np.meshgrid(RPM_BINS, KPA_BINS)
