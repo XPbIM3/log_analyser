@@ -13,7 +13,7 @@ np.set_printoptions(precision = 2, linewidth = 150, suppress = True)
 SHIFT_AFR = 1
 DISCARD_BEFORE = 0
 DISCARD_AFTER = 10
-HITS_NEEDED = 10
+HITS_NEEDED = 50
 T_FULLY_WARMED = 68
 
 STOICH = 14.7
@@ -124,6 +124,13 @@ if os.path.exists('VE.table'):
 	grid = np.meshgrid(RPM_BINS, KPA_BINS)
 	VE_TABLE = VE_TABLE_OBJECT.func(RPM_BINS, KPA_BINS)
 
+if os.path.exists('AFR.table'):
+	AFR_TABLE_OBJECT = mstable('AFR.table')
+	grid = np.meshgrid(RPM_BINS, KPA_BINS)
+	AFR_TABLE = AFR_TABLE_OBJECT.func(RPM_BINS, KPA_BINS)
+
+
+
 
 f = open(FILE, 'r')
 fWstamp = f.readline().rstrip('\n')
@@ -224,7 +231,9 @@ for i, line in enumerate(data):
 		
 		current_ve = float(line[CUR_VE])
 		afr = float(line[AFR])
-		afr_target = float(line[AFR_TARGET])
+		#afr_target = float(line[AFR_TARGET])
+		#breakpoint()
+		afr_target = AFR_TABLE_OBJECT.func(rpm, load)[0]
 
 		coef_flat = STOICH/afr
 		flat_ve = (current_ve/coef_flat)
