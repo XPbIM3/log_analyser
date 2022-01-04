@@ -18,7 +18,7 @@ T_FULLY_WARMED = 68
 
 STOICH = 14.7
 
-KPA_BINS = np.linspace(10,100,16)
+KPA_BINS = np.linspace(25,100,16)
 RPM_BINS = np.linspace(400,7000,16)
 
 print(RPM_BINS)
@@ -187,7 +187,7 @@ usefullData = []
 for i, line in enumerate(data):
 	#remove anything that:
 	#	      coolT 			accelEnrich           WarmEnrich          TPSDot         DFCO                  
-	if int(line[CLT])<T_FULLY_WARMED or line[ACCENR]!='100' or line[TPSDOT]!='0' or line[DFCO]!='0' or line[RPM]=='0':
+	if int(line[CLT])<T_FULLY_WARMED or line[ACCENR]!='100' or line[TPSDOT]!='0' or line[DFCO]!='0' or line[RPM]=='0' or float(line[GAMMAE])!=100:
 		discardFlag[i]=1
 
 
@@ -222,7 +222,7 @@ for i in range(KPA_BINS.size):
 
 for i, line in enumerate(data):
 	if discardFlagExpanded[i]!=1:
-		load = round(100*(float(line[MAP])/float(line[BARO])))
+		load = float(line[MAP])
 		rpm = int(line[RPM])
 
 		loadbins = getKpaBin(load)
