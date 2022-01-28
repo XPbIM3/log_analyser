@@ -18,11 +18,32 @@ T_FULLY_WARMED = 68
 
 STOICH = 14.7
 
+
 KPA_BINS = np.linspace(25,100,16)
 RPM_BINS = np.linspace(400,7000,16)
-
-print(RPM_BINS)
+print("defaul bins:")
 print(KPA_BINS)
+print(RPM_BINS)
+
+
+
+
+if os.path.exists('VE.table'):
+	VE_TABLE_OBJECT = mstable('VE.table')
+	KPA_BINS = np.array(VE_TABLE_OBJECT.yaxis)
+	RPM_BINS = np.array(VE_TABLE_OBJECT.xaxis)
+	print("Bins overrided!")
+	print(KPA_BINS)
+	print(RPM_BINS)
+	grid = np.meshgrid(RPM_BINS, KPA_BINS)
+	VE_TABLE = VE_TABLE_OBJECT.func(RPM_BINS, KPA_BINS)
+
+if os.path.exists('AFR.table'):
+	AFR_TABLE_OBJECT = mstable('AFR.table')
+	grid = np.meshgrid(RPM_BINS, KPA_BINS)
+	AFR_TABLE = AFR_TABLE_OBJECT.func(RPM_BINS, KPA_BINS)
+
+
 
 
 
@@ -119,15 +140,7 @@ print('PERCENTILE = ', PERCENTILE)
 
 
 
-if os.path.exists('VE.table'):
-	VE_TABLE_OBJECT = mstable('VE.table')
-	grid = np.meshgrid(RPM_BINS, KPA_BINS)
-	VE_TABLE = VE_TABLE_OBJECT.func(RPM_BINS, KPA_BINS)
 
-if os.path.exists('AFR.table'):
-	AFR_TABLE_OBJECT = mstable('AFR.table')
-	grid = np.meshgrid(RPM_BINS, KPA_BINS)
-	AFR_TABLE = AFR_TABLE_OBJECT.func(RPM_BINS, KPA_BINS)
 
 
 
