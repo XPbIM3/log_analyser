@@ -19,8 +19,13 @@ T_FULLY_WARMED = 68
 STOICH = 14.7
 
 
-KPA_BINS = np.linspace(25,100,16)
-RPM_BINS = np.linspace(400,7000,16)
+#KPA_BINS = np.linspace(25,100,16)
+#RPM_BINS = np.linspace(400,7000,16)
+
+KPA_BINS = np.arange(16)*6+10
+RPM_BINS = np.arange(16)*400+600
+
+
 print("defaul bins:")
 print(KPA_BINS)
 print(RPM_BINS)
@@ -30,11 +35,11 @@ print(RPM_BINS)
 
 if os.path.exists('VE.table'):
 	VE_TABLE_OBJECT = mstable('VE.table')
-	KPA_BINS = np.array(VE_TABLE_OBJECT.yaxis)
-	RPM_BINS = np.array(VE_TABLE_OBJECT.xaxis)
-	print("Bins overrided!")
-	print(KPA_BINS)
-	print(RPM_BINS)
+	#KPA_BINS = np.array(VE_TABLE_OBJECT.yaxis)
+	#RPM_BINS = np.array(VE_TABLE_OBJECT.xaxis)
+	#print("Bins overrided!")
+	#print(KPA_BINS)
+	#print(RPM_BINS)
 	grid = np.meshgrid(RPM_BINS, KPA_BINS)
 	VE_TABLE = VE_TABLE_OBJECT.func(RPM_BINS, KPA_BINS)
 
@@ -200,7 +205,7 @@ usefullData = []
 for i, line in enumerate(data):
 	#remove anything that:
 	#	      coolT 			accelEnrich           WarmEnrich          TPSDot         DFCO                  
-	if int(line[CLT])<T_FULLY_WARMED or line[ACCENR]!='100' or line[TPSDOT]!='0' or line[DFCO]!='0' or line[RPM]=='0' or float(line[GAMMAE])!=100:
+	if int(line[CLT])<T_FULLY_WARMED or line[ACCENR]!='100' or line[TPSDOT]!='0' or line[DFCO]!='0' or line[RPM]=='0':
 		discardFlag[i]=1
 
 
