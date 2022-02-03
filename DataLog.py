@@ -1,8 +1,10 @@
+import itertools
 import os
 import sys
 import numpy as np
 from xml_test import mstable
 import glob
+import pandas as pd
 #import matplotlib.pyplot as plt
 #fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
 np.set_printoptions(precision = 2, linewidth = 150, suppress = True)
@@ -53,7 +55,7 @@ if os.path.exists('AFR.table'):
 
 
 
-def export(RPMS, KPAS, ZS):
+def export(RPMS, KPAS, ZS, fname):
 	with open('VE.table.template', 'r') as t:
 		templ = t.read()
 
@@ -66,7 +68,7 @@ def export(RPMS, KPAS, ZS):
 	templ = templ.replace('_YAXIS_', yax)
 	templ = templ.replace('_ZAXIS_', zax)
 
-	with open('VE_export.table', 'w') as t:
+	with open(fname, 'w') as t:
 		t.write(templ)
 
 
@@ -140,136 +142,64 @@ flist = glob.glob("./logs/*.msl")
 PERCENTILE = 75
 print('PERCENTILE = ', PERCENTILE)
 
-f = open(flist[0], 'r')
-fWstamp = f.readline().rstrip('\n')
-timestamp = f.readline().rstrip('\n')
-titles = f.readline().rstrip('\n').split('\t')[0:33]
-units = f.readline().rstrip('\n').split('\t')[0:33]
-f.close()
-
-rawData=[]
+pd_frames = []
 for fname in flist:
-	print('parsing:', str(fname))
-	f = open(fname, 'r')
-	fWstamp_cur = f.readline().rstrip('\n')
-	assert fWstamp==fWstamp_cur
-	timestamp_cur = f.readline().rstrip('\n')
-	titles_cur = f.readline().rstrip('\n').split('\t')[0:33]
-	assert titles == titles_cur
-	units_cur = f.readline().rstrip('\n').split('\t')[0:33]
-	assert units == units_cur
-	rawData+= f.readlines()
-	f.close()
+	fr = pd.read_csv(fname, sep='\t', header=0, skiprows=[0,1,3])
+	pd_frames.append(fr)
 
+data_raw = pd.concat(pd_frames)
 
-data = []
-for rawLine in rawData:
-	line = rawLine.rstrip('\n').split('\t')
-	if 'Time' not in line and 'kpa' not in line and 'speeduino' not in line and 'capture' not in line:
-		data.append(line)
+print(data_raw.describe)
 
-titles = np.array(titles)
-AFR = np.where(titles == 'AFR')[0][0]
-AFR_TARGET = np.where(titles == 'AFR Target')[0][0]
-CLT = np.where(titles == 'CLT')[0][0]
-RPM = np.where(titles == 'RPM')[0][0]
-ACCENR = np.where(titles == 'Accel Enrich')[0][0]
-GWARM = np.where(titles == 'Gwarm')[0][0]
-TPSDOT = np.where(titles == 'TPS DOT')[0][0]
-DFCO = np.where(titles == 'DFCO')[0][0]
-MAP = np.where(titles == 'MAP')[0][0]
-CUR_VE = np.where(titles == 'Current VE')[0][0]
-RPM_PER_S =np.where(titles == 'rpm/s')[0][0]
-TPS = np.where(titles == 'TPS')[0][0]
-IAT = np.where(titles == 'IAT')[0][0]
-GAMMAE = np.where(titles == 'Gammae')[0][0]
-#do a time-shift for AFR readings.
-for i in range(len(data)-SHIFT_AFR):
-	data[i][AFR] = data[i+SHIFT_AFR][AFR]
+data_raw.AFR = data_raw.AFR.shift(SHIFT_AFR)
+data_raw.Lambda = data_raw.Lambda.shift(SHIFT_AFR)
 
-for i in range(SHIFT_AFR):
-	data.remove(data[-1])
+data = data_raw[(data_raw.Gwarm==100) & (data_raw.RPM>0) & (data_raw.DFCO==0)& (data_raw['TPS DOT']==0) & (data_raw['Accel Enrich']==100)]
+data = data.dropna()
+print(data.describe)
 
-
-
-
-
-discardFlag = np.zeros(len(data))
-
-
-
-usefullData = []
-
-#grab usefull data only
-
-for i, line in enumerate(data):
-	#remove anything that:
-	#	      coolT 			accelEnrich           WarmEnrich          TPSDot         DFCO                  
-	if int(line[CLT])<T_FULLY_WARMED or line[ACCENR]!='100' or line[TPSDOT]!='0' or line[DFCO]!='0' or line[RPM]=='0' or line[GWARM]!='100':
-		discardFlag[i]=1
-
-
-
-
-#also discard everything near transition points
-discardFlagExpanded = discardFlag.copy()
-for i in range(DISCARD_BEFORE,len(discardFlag)-DISCARD_AFTER):
-	if discardFlag[i]==1:
-		for j in range(-DISCARD_BEFORE, +DISCARD_AFTER):
-			discardFlagExpanded[i+j]=1
-
-
+#data = data.assign(corr_coef = lambda x: x['AFR']/x['AFR Target'])
+#data['corr_coef'] = data.apply(lambda row: row['AFR']/row['AFR Target'], axis=1)
+data['afr_target_func'] = data.apply(lambda row: AFR_TABLE_OBJECT.func(row['RPM'], row['MAP'])[0], axis=1)
+data['corr_coef'] = data.apply(lambda row: row['AFR']/row['afr_target_func'], axis=1)
 
 
 #prepare a VE bins for statistical work
 
 VEBins =  np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
-flatVEBins = np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
 error = np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
 
 for i in range(KPA_BINS.size):
 	for j in range(RPM_BINS.size):
 		VEBins[i][j] = []
-		flatVEBins[i][j] = []
 		error[i][j]=[]
 
 
 
 #fill VE map bins relatively to  load/rpm
+iterator = data.iterrows()
+for i, line in iterator:
+	load = float(line['MAP'])
+	rpm = int(line['RPM'])
+	loadbins = getKpaBin(load)
+	rpmbins = getRpmBin(rpm)
+	
+	current_ve = float(line['VE1'])
+	afr = float(line['AFR'])
+	afr_target = AFR_TABLE_OBJECT.func(rpm, load)[0]
 
+	#coef = afr_target/afr
+	coef = line['corr_coef']
+	ve = current_ve * coef
 
-for i, line in enumerate(data):
-	if discardFlagExpanded[i]!=1:
-		load = float(line[MAP])
-		rpm = int(line[RPM])
-
-		loadbins = getKpaBin(load)
-		rpmbins = getRpmBin(rpm)
-		gammae = float(line[GAMMAE])
-		
-		current_ve = float(line[CUR_VE])
-		afr = float(line[AFR])
-		#afr_target = float(line[AFR_TARGET])
-		#breakpoint()
-		afr_target = AFR_TABLE_OBJECT.func(rpm, load)[0]
-
-		coef_flat = STOICH/afr
-		flat_ve = (current_ve/coef_flat)
-
-		coef = afr_target/afr
-		ve = (current_ve/coef)
-
-
-		for l in loadbins:
-			for r in rpmbins:
-				VEBins[l][r].append(ve)
-				flatVEBins[l][r].append(flat_ve)
-				error[l][r].append(coef)
+	for l in loadbins:
+		for r in rpmbins:
+			VEBins[l][r].append(ve)
+			error[l][r].append(coef)
 
 
 # aquire median for bins
 VEmed = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = float)
-flatVEmed = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = float)
 std_dev = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = float)
 std_dev_flat = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = float)
 error_med = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = float)
@@ -281,21 +211,19 @@ for i in range(KPA_BINS.size):
 		if (VEBins[i][j]!=[] and len(VEBins[i][j])>HITS_NEEDED):
 			binlen[i][j] = len(VEBins[i][j])
 			VEmed[i][j]=np.percentile(VEBins[i][j],PERCENTILE)
-			flatVEmed[i][j]=np.percentile(flatVEBins[i][j],PERCENTILE)
 			error_med[i][j]=np.percentile(error[i][j], 50)
 			std_dev[i][j] = np.std(VEBins[i][j])
-			std_dev_flat[i][j] = np.std(flatVEBins[i][j])
 
 
 print('VEs from VE.table:')
 print (np.flipud(VE_TABLE.astype(np.uint8)))
 
 
-print('VEs from log:')
-print (np.flipud(VEmed.astype(np.uint8)))
+print('VE generated from log:')
+print (np.flipud(np.round(VEmed).astype(np.uint8)))
 
 
-VEmed_filled = VEmed.copy()
+VEmed_filled = np.round(VEmed.copy())
 VEmed_filled[VEmed_filled==0] = VE_TABLE[VEmed_filled==0]
 
 print('VE filled')
@@ -320,4 +248,6 @@ print (np.flipud(std_dev))
 #plt.show()
 
 
-export(RPM_BINS, KPA_BINS, VEmed_filled)
+export(RPM_BINS, KPA_BINS, VEmed_filled, 'VE_EXPORT.table')
+
+
