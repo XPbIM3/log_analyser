@@ -2,10 +2,9 @@ import os
 import sys
 import numpy as np
 from xml_test import mstable
-
-import matplotlib.pyplot as plt
-fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-
+import glob
+#import matplotlib.pyplot as plt
+#fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
 np.set_printoptions(precision = 2, linewidth = 150, suppress = True)
 
 #USER settings section
@@ -14,7 +13,7 @@ SHIFT_AFR = 1
 DISCARD_BEFORE = 0
 DISCARD_AFTER = 10
 HITS_NEEDED = 50
-T_FULLY_WARMED = 68
+T_FULLY_WARMED = 60
 
 STOICH = 14.7
 
@@ -134,36 +133,39 @@ def getRpmBin(rpm):
 
 
 
-FILE = sys.argv[1]
+#FILE = sys.argv[1]
+flist = glob.glob("./logs/*.msl")
 
-if len(sys.argv)==3:
-	PERCENTILE = int(sys.argv[2])
-else:
-	PERCENTILE = 75
 
+PERCENTILE = 75
 print('PERCENTILE = ', PERCENTILE)
 
-
-
-
-
-
-
-
-f = open(FILE, 'r')
+f = open(flist[0], 'r')
 fWstamp = f.readline().rstrip('\n')
 timestamp = f.readline().rstrip('\n')
-titles = f.readline().rstrip('\n').split('\t')
-units = f.readline().rstrip('\n').split('\t')
-
-
-rawData = f.readlines()
+titles = f.readline().rstrip('\n').split('\t')[0:33]
+units = f.readline().rstrip('\n').split('\t')[0:33]
 f.close()
-data = []
 
+rawData=[]
+for fname in flist:
+	print('parsing:', str(fname))
+	f = open(fname, 'r')
+	fWstamp_cur = f.readline().rstrip('\n')
+	assert fWstamp==fWstamp_cur
+	timestamp_cur = f.readline().rstrip('\n')
+	titles_cur = f.readline().rstrip('\n').split('\t')[0:33]
+	assert titles == titles_cur
+	units_cur = f.readline().rstrip('\n').split('\t')[0:33]
+	assert units == units_cur
+	rawData+= f.readlines()
+	f.close()
+
+
+data = []
 for rawLine in rawData:
 	line = rawLine.rstrip('\n').split('\t')
-	if len(line)==len(titles) and 'Time' not in line and 'kpa' not in line:
+	if 'Time' not in line and 'kpa' not in line and 'speeduino' not in line and 'capture' not in line:
 		data.append(line)
 
 titles = np.array(titles)
@@ -181,8 +183,6 @@ RPM_PER_S =np.where(titles == 'rpm/s')[0][0]
 TPS = np.where(titles == 'TPS')[0][0]
 IAT = np.where(titles == 'IAT')[0][0]
 GAMMAE = np.where(titles == 'Gammae')[0][0]
-
-BARO = np.where(titles == 'Baro Pressure')[0][0]
 #do a time-shift for AFR readings.
 for i in range(len(data)-SHIFT_AFR):
 	data[i][AFR] = data[i+SHIFT_AFR][AFR]
@@ -205,7 +205,7 @@ usefullData = []
 for i, line in enumerate(data):
 	#remove anything that:
 	#	      coolT 			accelEnrich           WarmEnrich          TPSDot         DFCO                  
-	if int(line[CLT])<T_FULLY_WARMED or line[ACCENR]!='100' or line[TPSDOT]!='0' or line[DFCO]!='0' or line[RPM]=='0':
+	if int(line[CLT])<T_FULLY_WARMED or line[ACCENR]!='100' or line[TPSDOT]!='0' or line[DFCO]!='0' or line[RPM]=='0' or line[GWARM]!='100':
 		discardFlag[i]=1
 
 
