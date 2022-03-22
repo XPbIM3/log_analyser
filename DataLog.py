@@ -59,9 +59,9 @@ def export(RPMS, KPAS, ZS, fname):
 	with open('VE.table.template', 'r') as t:
 		templ = t.read()
 
-	xax = "\n"+("\n".join(list(map(str, RPMS.astype(np.int)))))+"\n"
-	yax = "\n"+("\n".join(list(map(str, KPAS.astype(np.int)))))+"\n"
-	zax = "\n"+str(ZS.astype(np.int)).strip('[ ]').replace('[','').replace(']', '')+"\n"
+	xax = "\n"+("\n".join(list(map(str, RPMS.astype(int)))))+"\n"
+	yax = "\n"+("\n".join(list(map(str, KPAS.astype(int)))))+"\n"
+	zax = "\n"+str(ZS.astype(int)).strip('[ ]').replace('[','').replace(']', '')+"\n"
 
 
 	templ = templ.replace('_XAXIS_', xax)
@@ -168,11 +168,13 @@ data['corr_coef'] = data.apply(lambda row: row['AFR']/row['afr_target_func'], ax
 
 VEBins =  np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
 error = np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
+AFR_bins = np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
 
 for i in range(KPA_BINS.size):
 	for j in range(RPM_BINS.size):
 		VEBins[i][j] = []
 		error[i][j]=[]
+		AFR_bins[i][j]=[]
 
 
 
@@ -185,26 +187,27 @@ for i, line in iterator:
 	rpmbins = getRpmBin(rpm)
 	
 	current_ve = float(line['VE1'])
-	afr = float(line['AFR'])
-	afr_target = AFR_TABLE_OBJECT.func(rpm, load)[0]
+	#afr = float(line['AFR'])
+	#afr_target = AFR_TABLE_OBJECT.func(rpm, load)[0]
 
 	#coef = afr_target/afr
 	coef = line['corr_coef']
 	ve = current_ve * coef
+	afr_achieved = line['AFR']
 
 	for l in loadbins:
 		for r in rpmbins:
 			VEBins[l][r].append(ve)
 			error[l][r].append(coef)
+			AFR_bins[l][r].append(afr_achieved)
 
 
 # aquire median for bins
 VEmed = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = float)
 std_dev = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = float)
-std_dev_flat = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = float)
 error_med = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = float)
 binlen = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = int)
-
+AFR_bins_med = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = float)
 
 for i in range(KPA_BINS.size):
 	for j in range(RPM_BINS.size):
@@ -213,13 +216,16 @@ for i in range(KPA_BINS.size):
 			VEmed[i][j]=np.percentile(VEBins[i][j],PERCENTILE)
 			error_med[i][j]=np.percentile(error[i][j], 50)
 			std_dev[i][j] = np.std(VEBins[i][j])
+			AFR_bins_med[i][j] = np.percentile(AFR_bins[i][j], 50)
 
+print("achieved AFR")
+print (np.flipud(AFR_bins_med.astype(float)))
 
 print('VEs from VE.table:')
 print (np.flipud(VE_TABLE.astype(np.uint8)))
 
 
-print('VE generated from log:')
+print('VE generated from log(corrected):')
 print (np.flipud(np.round(VEmed).astype(np.uint8)))
 
 
@@ -230,7 +236,7 @@ print('VE filled')
 print(np.flipud(VEmed_filled.astype(np.uint8)))
 
 
-print('% more fuel')
+print('% more fuel need')
 print(np.flipud(error_med))
 
 
