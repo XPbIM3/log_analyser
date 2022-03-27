@@ -1,7 +1,7 @@
 import os
 import sys
 import numpy as np
-
+from scipy import interpolate
 
 def blockToArray(block:list, shape:tuple = (16,16)):
     ret = []
@@ -54,4 +54,4 @@ def getTable(path:str, description_dict:dict):
 
 
 vetable = getTable(F_NAME, VE_TABLE_DICT)
-vetable = getTable(F_NAME, AFR_TABLE_DICT)
+afrtable = getTable(F_NAME, AFR_TABLE_DICT)
