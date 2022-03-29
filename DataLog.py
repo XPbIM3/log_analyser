@@ -5,6 +5,7 @@ import numpy as np
 from xml_test import mstable
 import glob
 import pandas as pd
+from TuneParser import *
 #import matplotlib.pyplot as plt
 #fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
 np.set_printoptions(precision = 2, linewidth = 150, suppress = True)
@@ -25,7 +26,7 @@ STOICH = 14.7
 
 KPA_BINS = np.arange(16)*6+10
 RPM_BINS = np.arange(16)*400+600
-
+AFR_TABLE = np.array([np.linspace(15, 12.5, 16)]*16).transpose()
 
 print("defaul bins:")
 print(KPA_BINS)
@@ -33,7 +34,7 @@ print(RPM_BINS)
 
 
 
-
+'''
 if os.path.exists('VE.table'):
 	VE_TABLE_OBJECT = mstable('VE.table')
 	#KPA_BINS = np.array(VE_TABLE_OBJECT.yaxis)
@@ -48,10 +49,18 @@ if os.path.exists('AFR.table'):
 	AFR_TABLE_OBJECT = mstable('AFR.table')
 	grid = np.meshgrid(RPM_BINS, KPA_BINS)
 	AFR_TABLE = AFR_TABLE_OBJECT.func(RPM_BINS, KPA_BINS)
+'''
 
 
+VE_TABLE_DICT = {'table': 'veTable', 'xaxis': 'rpmBins', 'yaxis': 'fuelLoadBins'}
+AFR_TABLE_DICT = {'table': 'afrTable', 'xaxis': 'rpmBinsAFR', 'yaxis': 'loadBinsAFR'}
+F_NAME = 'CurrentTune.msq'
+RPM_BINS_VE, KPA_BINS_VE, table, VE_TABLE_FUNC = getTable(F_NAME,VE_TABLE_DICT)
+RPM_BINS_AFR, KPA_BINS_AFR, table, AFR_TABLE_FUNC = getTable(F_NAME,AFR_TABLE_DICT)
 
 
+VE_TABLE = VE_TABLE_FUNC(RPM_BINS, KPA_BINS)
+#AFR_TABLE = AFR_TABLE_FUNC(RPM_BINS, KPA_BINS)
 
 
 
@@ -160,7 +169,7 @@ print(data.describe)
 
 #data = data.assign(corr_coef = lambda x: x['AFR']/x['AFR Target'])
 #data['corr_coef'] = data.apply(lambda row: row['AFR']/row['AFR Target'], axis=1)
-data['afr_target_func'] = data.apply(lambda row: AFR_TABLE_OBJECT.func(row['RPM'], row['MAP'])[0], axis=1)
+data['afr_target_func'] = data.apply(lambda row: AFR_TABLE_FUNC(row['RPM'], row['MAP'])[0], axis=1)
 data['corr_coef'] = data.apply(lambda row: row['AFR']/row['afr_target_func'], axis=1)
 
 

@@ -1,7 +1,13 @@
 import os
 import sys
 import numpy as np
+import scipy
 from scipy import interpolate
+
+
+
+
+
 
 def blockToArray(block:list, shape:tuple = (16,16)):
     ret = []
@@ -30,12 +36,6 @@ def findBlockByName(lines:list, k:str):
     return(lines[opening_index:closing_index])
 
 
-VE_TABLE_DICT = {'table': 'veTable', 'xaxis': 'rpmBins', 'yaxis': 'fuelLoadBins'}
-AFR_TABLE_DICT = {'table': 'afrTable', 'xaxis': 'rpmBinsAFR', 'yaxis': 'loadBinsAFR'}
-F_NAME = 'CurrentTune.msq'
-
-
-
 
 def getTable(path:str, description_dict:dict):
     assert os.path.exists(path)
@@ -49,9 +49,8 @@ def getTable(path:str, description_dict:dict):
     table = blockToArray(table,(16,16))
     xaxis = blockToAxis(xaxis)
     yaxis = blockToAxis(yaxis)
-    return table, xaxis, yaxis
+    obj = scipy.interpolate.interp2d(xaxis, yaxis, table)
 
 
+    return xaxis, yaxis, table, obj
 
-vetable = getTable(F_NAME, VE_TABLE_DICT)
-afrtable = getTable(F_NAME, AFR_TABLE_DICT)
