@@ -5,6 +5,11 @@ import numpy as np
 #from xml_test import mstable
 import glob
 import pandas as pd
+import pywebio
+import numpy as np
+from pywebio.output import *
+
+
 from TuneParser import *
 #import matplotlib.pyplot as plt
 #fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
@@ -26,7 +31,7 @@ STOICH = 14.7
 
 KPA_BINS = np.arange(16)*6+10
 RPM_BINS = np.arange(16)*400+600
-AFR_TABLE = np.array([np.linspace(15, 12.5, 16)]*16).transpose()
+
 
 print("defaul bins:")
 print(KPA_BINS)
@@ -60,7 +65,16 @@ RPM_BINS_AFR, KPA_BINS_AFR, table, AFR_TABLE_FUNC = getTable(F_NAME,AFR_TABLE_DI
 
 
 VE_TABLE = VE_TABLE_FUNC(RPM_BINS, KPA_BINS)
+AFR_TABLE = np.array([np.linspace(15, 12.5, 16)]*16).transpose()
 #AFR_TABLE = AFR_TABLE_FUNC(RPM_BINS, KPA_BINS)
+
+
+
+def pywebioTableRepresentation(table:np.ndarray, xaxis:np.ndarray, yaxis:np.ndarray):
+	ret = np.hstack([yaxis.reshape((16,1)), table])
+	xaxis_0 = np.hstack([0, xaxis]).reshape((1,17))
+	ret = np.vstack([xaxis_0, ret])
+	return np.flipud(ret)
 
 
 
@@ -229,13 +243,21 @@ for i in range(KPA_BINS.size):
 
 print("achieved AFR")
 print (np.flipud(AFR_bins_med.astype(float)))
+put_text("Achieved AFR during run:")
+put_table(pywebioTableRepresentation(AFR_bins_med, RPM_BINS, KPA_BINS).astype(float).tolist(), header=[])
+
+
 
 print('VEs from VE.table:')
 print (np.flipud(VE_TABLE.astype(np.uint8)))
-
+put_text("VE Table from tune:")
+put_table(pywebioTableRepresentation(VE_TABLE, RPM_BINS, KPA_BINS).astype(int).tolist(), header=[])
 
 print('VE generated from log(corrected):')
 print (np.flipud(np.round(VEmed).astype(np.uint8)))
+put_text("VE Table from log, corrected:")
+put_table(pywebioTableRepresentation(np.round(VEmed), RPM_BINS, KPA_BINS).astype(int).tolist(), header=[])
+
 
 
 VEmed_filled = np.round(VEmed.copy())
@@ -243,6 +265,13 @@ VEmed_filled[VEmed_filled==0] = VE_TABLE[VEmed_filled==0]
 
 print('VE filled')
 print(np.flipud(VEmed_filled.astype(np.uint8)))
+put_text("VE Table from log, filled up:")
+put_table(pywebioTableRepresentation(VEmed_filled, RPM_BINS, KPA_BINS).astype(int).tolist(), header=[])
+
+
+
+
+
 
 
 print('% more fuel need')
@@ -261,7 +290,7 @@ print (np.flipud(std_dev))
 #RPM_BINS, KPA_BINS = np.meshgrid(RPM_BINS, KPA_BINS)
 #surf = ax.plot_surface(RPM_BINS, KPA_BINS, flatVEmed, linewidth=0, antialiased=False)
 #plt.show()
-
+pywebio.session.set_env(output_max_width = '100%')
 
 export(RPM_BINS, KPA_BINS, VEmed_filled, 'VE_EXPORT.table')
 
