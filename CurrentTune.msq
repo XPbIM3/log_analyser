@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="ISO-8859-1"?>
 <msq xmlns="http://www.msefi.com/:msq">
-<bibliography author="TunerStudio MS Lite! 3.1.06 - EFI Analytics, Inc." tuneComment="" writeDate="Tue Mar 22 10:52:53 YEKT 2022"/>
+<bibliography author="TunerStudio MS Lite! 3.1.08 - EFI Analytics, Inc." tuneComment="" writeDate="Mon Apr 04 19:27:11 YEKT 2022"/>
 <versionInfo fileFormat="5.0" firmwareInfo="Speeduino+2021.08" nPages="14" signature="speeduino 202108"/>
 <page>
 <pcVariable name="tsCanId">"0"</pcVariable>
@@ -507,7 +507,7 @@
 <constant name="baroCorr">"Off"</constant>
 <constant name="injLayout">"Paired"</constant>
 <constant name="perToothIgn">"Yes"</constant>
-<constant name="dfcoEnabled">"Off"</constant>
+<constant name="dfcoEnabled">"On"</constant>
 <constant digits="0" name="aeColdTaperMax" units="C">60.0</constant>
 <constant digits="0" name="dutyLim" units="%">90.0</constant>
 <constant digits="0" name="flexFreqLow" units="Hz">50.0</constant>
@@ -615,13 +615,13 @@
 </page>
 <page number="1" size="288">
 <constant cols="16" digits="0" name="veTable" rows="16" units="%">
-         61.0 61.0 63.0 65.0 66.0 64.0 68.0 65.0 63.0 70.0 68.0 68.0 68.0 67.0 69.0 78.0 
-         61.0 61.0 63.0 62.0 64.0 64.0 66.0 64.0 63.0 70.0 68.0 68.0 68.0 67.0 69.0 78.0 
-         61.0 56.0 57.0 58.0 61.0 61.0 57.0 61.0 77.0 77.0 74.0 74.0 74.0 73.0 75.0 84.0 
-         61.0 59.0 59.0 61.0 75.0 75.0 68.0 75.0 76.0 77.0 78.0 78.0 77.0 77.0 78.0 87.0 
-         55.0 55.0 64.0 70.0 78.0 78.0 75.0 80.0 76.0 76.0 77.0 76.0 75.0 74.0 74.0 78.0 
-         56.0 56.0 68.0 72.0 80.0 80.0 77.0 79.0 79.0 82.0 80.0 78.0 78.0 78.0 78.0 78.0 
-         57.0 57.0 71.0 78.0 81.0 80.0 79.0 82.0 87.0 83.0 82.0 80.0 79.0 78.0 78.0 78.0 
+         61.0 61.0 66.0 68.0 69.0 67.0 70.0 70.0 70.0 70.0 68.0 68.0 68.0 67.0 69.0 78.0 
+         61.0 61.0 66.0 65.0 67.0 67.0 70.0 70.0 70.0 70.0 68.0 68.0 68.0 67.0 69.0 78.0 
+         61.0 56.0 68.0 69.0 70.0 70.0 70.0 74.0 75.0 75.0 77.0 76.0 76.0 75.0 75.0 80.0 
+         61.0 59.0 65.0 67.0 75.0 75.0 74.0 75.0 76.0 77.0 78.0 78.0 77.0 77.0 78.0 82.0 
+         55.0 55.0 66.0 72.0 78.0 78.0 77.0 80.0 76.0 80.0 81.0 80.0 79.0 78.0 78.0 82.0 
+         56.0 56.0 68.0 72.0 80.0 80.0 77.0 79.0 79.0 86.0 84.0 82.0 82.0 82.0 82.0 82.0 
+         59.0 59.0 71.0 78.0 81.0 80.0 79.0 82.0 87.0 87.0 86.0 84.0 83.0 82.0 82.0 82.0 
          66.0 71.0 75.0 81.0 82.0 81.0 81.0 87.0 88.0 93.0 93.0 92.0 91.0 91.0 91.0 91.0 
          79.0 82.0 83.0 85.0 88.0 88.0 88.0 90.0 94.0 99.0 99.0 99.0 99.0 98.0 98.0 98.0 
          85.0 86.0 88.0 89.0 91.0 91.0 90.0 95.0 105.0 105.0 105.0 105.0 104.0 104.0 103.0 103.0 
@@ -1002,7 +1002,7 @@
          -40.0 
          -20.0 
          0.0 
-         19.0 
+         15.0 
          35.0 
          50.0 
          60.0 
