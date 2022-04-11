@@ -8,7 +8,9 @@ import pandas as pd
 import pywebio
 import numpy as np
 from pywebio.output import *
-
+import scipy
+from scipy import interpolate
+from scipy.ndimage.filters import gaussian_filter
 
 from TuneParser import *
 #import matplotlib.pyplot as plt
@@ -22,9 +24,11 @@ DISCARD_BEFORE = 0
 DISCARD_AFTER = 10
 HITS_NEEDED = 50
 T_FULLY_WARMED = 60
-
 STOICH = 14.7
+PERCENTILE = 75
+BLURR_FACTOR = 0.5
 
+print('PERCENTILE = ', PERCENTILE)
 
 #KPA_BINS = np.linspace(25,100,16)
 #RPM_BINS = np.linspace(400,7000,16)
@@ -61,14 +65,13 @@ VE_TABLE_DICT = {'table': 'veTable', 'xaxis': 'rpmBins', 'yaxis': 'fuelLoadBins'
 AFR_TABLE_DICT = {'table': 'afrTable', 'xaxis': 'rpmBinsAFR', 'yaxis': 'loadBinsAFR'}
 F_NAME = 'CurrentTune.msq'
 RPM_BINS_VE, KPA_BINS_VE, table, VE_TABLE_FUNC = getTable(F_NAME,VE_TABLE_DICT)
-RPM_BINS_AFR, KPA_BINS_AFR, table, AFR_TABLE_FUNC = getTable(F_NAME,AFR_TABLE_DICT)
+#RPM_BINS_AFR, KPA_BINS_AFR, table, AFR_TABLE_FUNC = getTable(F_NAME,AFR_TABLE_DICT)
 
 
 VE_TABLE = VE_TABLE_FUNC(RPM_BINS, KPA_BINS)
-AFR_TABLE = np.array([np.linspace(15, 12.5, 16)]*16).transpose()
+AFR_TABLE = np.array([np.linspace(STOICH, 12.5, 16)]*16).transpose()
 #AFR_TABLE = AFR_TABLE_FUNC(RPM_BINS, KPA_BINS)
-
-
+AFR_TABLE_FUNC = scipy.interpolate.interp2d(RPM_BINS, KPA_BINS, AFR_TABLE)
 
 def pywebioTableRepresentation(table:np.ndarray, xaxis:np.ndarray, yaxis:np.ndarray):
 	ret = np.hstack([yaxis.reshape((16,1)), table])
@@ -94,6 +97,23 @@ def export(RPMS, KPAS, ZS, fname):
 	with open(fname, 'w') as t:
 		t.write(templ)
 
+
+
+def export_float(RPMS, KPAS, ZS, fname):
+	with open('VE.table.template', 'r') as t:
+		templ = t.read()
+
+	xax = "\n"+("\n".join(list(map(str, RPMS.astype(int)))))+"\n"
+	yax = "\n"+("\n".join(list(map(str, KPAS.astype(int)))))+"\n"
+	zax = "\n"+str(ZS.astype(float)).strip('[ ]').replace('[','').replace(']', '')+"\n"
+
+
+	templ = templ.replace('_XAXIS_', xax)
+	templ = templ.replace('_YAXIS_', yax)
+	templ = templ.replace('_ZAXIS_', zax)
+
+	with open(fname, 'w') as t:
+		t.write(templ)
 
 
 
@@ -162,8 +182,7 @@ def getRpmBin(rpm):
 flist = glob.glob("./logs/*.msl")
 
 
-PERCENTILE = 75
-print('PERCENTILE = ', PERCENTILE)
+
 
 pd_frames = []
 for fname in flist:
@@ -292,6 +311,11 @@ print (np.flipud(std_dev))
 #plt.show()
 pywebio.session.set_env(output_max_width = '100%')
 
-export(RPM_BINS, KPA_BINS, VEmed_filled, 'VE_EXPORT.table')
 
+
+blurred_ve = np.round(gaussian_filter(VEmed_filled, sigma=BLURR_FACTOR)).astype(int)
+
+export_float(RPM_BINS, KPA_BINS, AFR_TABLE, 'AFR_EXPORT.table')
+export(RPM_BINS, KPA_BINS, VEmed_filled, 'VE_EXPORT.table')
+export(RPM_BINS, KPA_BINS, blurred_ve, 'VE_EXPORT_blurred.table')
 
