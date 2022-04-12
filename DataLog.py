@@ -5,9 +5,9 @@ import numpy as np
 #from xml_test import mstable
 import glob
 import pandas as pd
-import pywebio
+#import pywebio
 import numpy as np
-from pywebio.output import *
+#from pywebio.output import *
 import scipy
 from scipy import interpolate
 from scipy.ndimage.filters import gaussian_filter
@@ -25,7 +25,7 @@ DISCARD_AFTER = 10
 HITS_NEEDED = 50
 T_FULLY_WARMED = 60
 STOICH = 14.7
-PERCENTILE = 75
+PERCENTILE = 50
 BLURR_FACTOR = 0.5
 
 print('PERCENTILE = ', PERCENTILE)
@@ -69,7 +69,7 @@ RPM_BINS_VE, KPA_BINS_VE, table, VE_TABLE_FUNC = getTable(F_NAME,VE_TABLE_DICT)
 
 
 VE_TABLE = VE_TABLE_FUNC(RPM_BINS, KPA_BINS)
-AFR_TABLE = np.array([np.linspace(STOICH, 12.5, 16)]*16).transpose()
+AFR_TABLE = np.array([np.linspace(15.0, 12.5, 16)]*16).transpose()
 #AFR_TABLE = AFR_TABLE_FUNC(RPM_BINS, KPA_BINS)
 AFR_TABLE_FUNC = scipy.interpolate.interp2d(RPM_BINS, KPA_BINS, AFR_TABLE)
 
@@ -262,20 +262,20 @@ for i in range(KPA_BINS.size):
 
 print("achieved AFR")
 print (np.flipud(AFR_bins_med.astype(float)))
-put_text("Achieved AFR during run:")
-put_table(pywebioTableRepresentation(AFR_bins_med, RPM_BINS, KPA_BINS).astype(float).tolist(), header=[])
+#put_text("Achieved AFR during run:")
+#put_table(pywebioTableRepresentation(AFR_bins_med, RPM_BINS, KPA_BINS).astype(float).tolist(), header=[])
 
 
 
 print('VEs from VE.table:')
 print (np.flipud(VE_TABLE.astype(np.uint8)))
-put_text("VE Table from tune:")
-put_table(pywebioTableRepresentation(VE_TABLE, RPM_BINS, KPA_BINS).astype(int).tolist(), header=[])
+#put_text("VE Table from tune:")
+#put_table(pywebioTableRepresentation(VE_TABLE, RPM_BINS, KPA_BINS).astype(int).tolist(), header=[])
 
 print('VE generated from log(corrected):')
 print (np.flipud(np.round(VEmed).astype(np.uint8)))
-put_text("VE Table from log, corrected:")
-put_table(pywebioTableRepresentation(np.round(VEmed), RPM_BINS, KPA_BINS).astype(int).tolist(), header=[])
+#put_text("VE Table from log, corrected:")
+#put_table(pywebioTableRepresentation(np.round(VEmed), RPM_BINS, KPA_BINS).astype(int).tolist(), header=[])
 
 
 
@@ -284,8 +284,8 @@ VEmed_filled[VEmed_filled==0] = VE_TABLE[VEmed_filled==0]
 
 print('VE filled')
 print(np.flipud(VEmed_filled.astype(np.uint8)))
-put_text("VE Table from log, filled up:")
-put_table(pywebioTableRepresentation(VEmed_filled, RPM_BINS, KPA_BINS).astype(int).tolist(), header=[])
+#put_text("VE Table from log, filled up:")
+#put_table(pywebioTableRepresentation(VEmed_filled, RPM_BINS, KPA_BINS).astype(int).tolist(), header=[])
 
 
 
@@ -309,7 +309,7 @@ print (np.flipud(std_dev))
 #RPM_BINS, KPA_BINS = np.meshgrid(RPM_BINS, KPA_BINS)
 #surf = ax.plot_surface(RPM_BINS, KPA_BINS, flatVEmed, linewidth=0, antialiased=False)
 #plt.show()
-pywebio.session.set_env(output_max_width = '100%')
+#pywebio.session.set_env(output_max_width = '100%')
 
 
 
