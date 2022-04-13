@@ -1,6 +1,3 @@
-import itertools
-import os
-import sys
 import numpy as np
 #from xml_test import mstable
 import glob
@@ -20,8 +17,6 @@ np.set_printoptions(precision = 2, linewidth = 150, suppress = True)
 #USER settings section
 
 SHIFT_AFR = 1
-DISCARD_BEFORE = 0
-DISCARD_AFTER = 10
 HITS_NEEDED = 50
 T_FULLY_WARMED = 60
 STOICH = 14.7
@@ -196,7 +191,26 @@ print(data_raw.describe)
 data_raw.AFR = data_raw.AFR.shift(SHIFT_AFR)
 data_raw.Lambda = data_raw.Lambda.shift(SHIFT_AFR)
 
-data = data_raw[(data_raw.Gwarm==100) & (data_raw.RPM>0) & (data_raw.DFCO==0)& (data_raw['TPS DOT']==0) & (data_raw['Accel Enrich']==100)]
+
+'''
+del_indexes = []
+if DISCARD_AFTER>0:
+	counter = 0
+	for index, row in data_raw.iterrows():
+		#print(row)
+		if row['Accel Enrich']>100:
+			counter = DISCARD_AFTER
+			del_indexes.append(index)
+		elif counter>0:
+			row['Accel Enrich']=200
+			counter = counter - 1
+			del_indexes.append(index)
+data_raw.drop(del_indexes, inplace=True)
+'''
+
+
+
+data = data_raw[(data_raw.Gwarm==100) & (data_raw.RPM>0) & (data_raw.DFCO==0) & (data_raw['TPS DOT']==0) & (data_raw['Accel Enrich']==100)]
 data = data.dropna()
 print(data.describe)
 
@@ -204,6 +218,7 @@ print(data.describe)
 #data['corr_coef'] = data.apply(lambda row: row['AFR']/row['AFR Target'], axis=1)
 data['afr_target_func'] = data.apply(lambda row: AFR_TABLE_FUNC(row['RPM'], row['MAP'])[0], axis=1)
 data['corr_coef'] = data.apply(lambda row: row['AFR']/row['afr_target_func'], axis=1)
+
 
 
 #prepare a VE bins for statistical work
@@ -250,7 +265,7 @@ std_dev = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = float)
 error_med = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = float)
 binlen = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = int)
 AFR_bins_med = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = float)
-
+AFR_bins_std_dev = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = float)
 for i in range(KPA_BINS.size):
 	for j in range(RPM_BINS.size):
 		if (VEBins[i][j]!=[] and len(VEBins[i][j])>HITS_NEEDED):
@@ -259,6 +274,7 @@ for i in range(KPA_BINS.size):
 			error_med[i][j]=np.percentile(error[i][j], 50)
 			std_dev[i][j] = np.std(VEBins[i][j])
 			AFR_bins_med[i][j] = np.percentile(AFR_bins[i][j], 50)
+			AFR_bins_std_dev[i][j] = np.std(AFR_bins[i][j])
 
 print("achieved AFR")
 print (np.flipud(AFR_bins_med.astype(float)))
@@ -268,22 +284,21 @@ print (np.flipud(AFR_bins_med.astype(float)))
 
 
 print('VEs from VE.table:')
-print (np.flipud(VE_TABLE.astype(np.uint8)))
+print (np.flipud(VE_TABLE.astype(int)))
 #put_text("VE Table from tune:")
 #put_table(pywebioTableRepresentation(VE_TABLE, RPM_BINS, KPA_BINS).astype(int).tolist(), header=[])
 
 print('VE generated from log(corrected):')
-print (np.flipud(np.round(VEmed).astype(np.uint8)))
+print (np.flipud(np.round(VEmed).astype(int)))
 #put_text("VE Table from log, corrected:")
 #put_table(pywebioTableRepresentation(np.round(VEmed), RPM_BINS, KPA_BINS).astype(int).tolist(), header=[])
-
 
 
 VEmed_filled = np.round(VEmed.copy())
 VEmed_filled[VEmed_filled==0] = VE_TABLE[VEmed_filled==0]
 
 print('VE filled')
-print(np.flipud(VEmed_filled.astype(np.uint8)))
+print(np.flipud(VEmed_filled.astype(int)))
 #put_text("VE Table from log, filled up:")
 #put_table(pywebioTableRepresentation(VEmed_filled, RPM_BINS, KPA_BINS).astype(int).tolist(), header=[])
 
@@ -300,8 +315,13 @@ print(np.flipud(error_med))
 print('binlen')
 print(np.flipud(binlen))
 
-print('std:')
+print('std_ve:')
 print (np.flipud(std_dev))
+
+print('std_afr:')
+print (np.flipud(AFR_bins_std_dev))
+
+
 
 
 #print('std_flat:')
