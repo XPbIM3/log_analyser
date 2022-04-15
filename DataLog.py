@@ -19,16 +19,23 @@ SHIFT_AFR = 1
 HITS_NEEDED = 50
 T_FULLY_WARMED = 60
 STOICH = 14.7
-PERCENTILE = 50
+PERCENTILE = 0.5
 BLURR_FACTOR = 0.5
+CONFIG_ATMO_6 = {'KPA_SLOPE':6, 'KPA_OFFSET':10, 'RPM_SLOPE':400,'RPM_OFFSET':600, 'AFR_MIN':15.0, 'AFR_MAX':12.5}
+CONFIG_TURBO_6 = {'KPA_SLOPE':12, 'KPA_OFFSET':30, 'RPM_SLOPE':400,'RPM_OFFSET':600, 'AFR_MIN':14.0, 'AFR_MAX':12.0}
+
+CURRENT_CONFIG = CONFIG_ATMO_6
+assert CURRENT_CONFIG['KPA_SLOPE']%2 == 0
+assert CURRENT_CONFIG['RPM_SLOPE']%100 == 0
+
 
 print('PERCENTILE = ', PERCENTILE)
 
 #KPA_BINS = np.linspace(25,100,16)
 #RPM_BINS = np.linspace(400,7000,16)
 
-KPA_BINS = np.arange(16)*6+10
-RPM_BINS = np.arange(16)*400+600
+KPA_BINS = np.arange(16)*CURRENT_CONFIG['KPA_SLOPE']+CURRENT_CONFIG['KPA_OFFSET']
+RPM_BINS = np.arange(16)*CURRENT_CONFIG['RPM_SLOPE']+CURRENT_CONFIG['RPM_OFFSET']
 
 
 print("defaul bins:")
@@ -45,7 +52,7 @@ RPM_BINS_VE, KPA_BINS_VE, table, VE_TABLE_FUNC = getTable(F_NAME,VE_TABLE_DICT)
 
 
 VE_TABLE = VE_TABLE_FUNC(RPM_BINS, KPA_BINS)
-AFR_TABLE = np.array([np.linspace(15.0, 12.5, 16)]*16).transpose()
+AFR_TABLE = np.array([np.linspace(CURRENT_CONFIG['AFR_MIN'], CURRENT_CONFIG['AFR_MAX'], 16)]*16).transpose()
 #AFR_TABLE = AFR_TABLE_FUNC(RPM_BINS, KPA_BINS)
 AFR_TABLE_FUNC = scipy.interpolate.interp2d(RPM_BINS, KPA_BINS, AFR_TABLE)
 
@@ -157,7 +164,7 @@ for i in range(KPA_BINS.size):
 		pandas_frames[i][j] = data[(data.MAP>=kpa_min) & (data.MAP<kpa_max) & (data.RPM>=rpm_min) & (data.RPM<rpm_max)]
 		AFR_achieved[i][j] = pandas_frames[i][j].AFR.median()
 		VE_achieved[i][j]=pandas_frames[i][j].VE1.median()
-		AFR_mismatch[i][j]=pandas_frames[i][j]['corr_coef'].median()
+		AFR_mismatch[i][j]=pandas_frames[i][j]['corr_coef'].quantile(PERCENTILE)
 		Lambda_achieved[i][j]=pandas_frames[i][j]['Lambda'].median()
 		Lambda_achieved_std[i][j]=pandas_frames[i][j]['Lambda'].std()
 
