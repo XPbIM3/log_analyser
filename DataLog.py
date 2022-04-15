@@ -113,7 +113,23 @@ def export_float(RPMS, KPAS, ZS, fname):
 
 
 
-def getKpaBin(kpa):
+
+def getBinFromValue(value:float, bins:np.ndarray):
+	return np.argmin(np.abs(value-bins))
+
+
+def getValueFromBin(val:int, bins:np.ndarray):
+	midvalues = []
+	for i in range(bins.size-1):
+		midvalues.append((bins[i]+bins[i+1])/2)
+	midvalues = [0.0] + midvalues + [900.0]
+
+	return (midvalues[val], midvalues[val+1])
+
+
+'''
+
+def getKpaBin_deprecated(kpa):
 	l = KPA_BINS.tolist()
 	last_range = KPA_BINS[-1] - KPA_BINS[-2]
 	first_range = KPA_BINS[1] - KPA_BINS[0]
@@ -143,7 +159,7 @@ def getKpaBin(kpa):
 
 
 
-def getRpmBin(rpm):
+def getRpmBin_deprecated(rpm):
 	l = RPM_BINS.tolist()
 	last_range = RPM_BINS[-1] - RPM_BINS[-2]
 	first_range = RPM_BINS[1] - RPM_BINS[0]
@@ -172,7 +188,7 @@ def getRpmBin(rpm):
 			return [i, i+1]
 
 
-
+'''
 #FILE = sys.argv[1]
 flist = glob.glob("./logs/*.msl")
 
@@ -226,15 +242,20 @@ data['corr_coef'] = data.apply(lambda row: row['AFR']/row['afr_target_func'], ax
 VEBins =  np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
 error = np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
 AFR_bins = np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
+pandas_frames = np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
 
 for i in range(KPA_BINS.size):
 	for j in range(RPM_BINS.size):
 		VEBins[i][j] = []
 		error[i][j]=[]
 		AFR_bins[i][j]=[]
+		kpa_min, kpa_max = getValueFromBin(i, KPA_BINS)
+		rpm_min, rpm_max = getValueFromBin(i, RPM_BINS)
+		pandas_frames[i][j] = data[(data.MAP>=kpa_min) & (data.MAP<kpa_max) & (data.RPM>=rpm_min) & (data.RPM<rpm_max)]
 
 
 
+'''
 #fill VE map bins relatively to  load/rpm
 iterator = data.iterrows()
 for i, line in iterator:
@@ -306,8 +327,6 @@ print(np.flipud(VEmed_filled.astype(int)))
 
 
 
-
-
 print('% more fuel need')
 print(np.flipud(error_med))
 
@@ -339,3 +358,4 @@ export_float(RPM_BINS, KPA_BINS, AFR_TABLE, 'AFR_EXPORT.table')
 export(RPM_BINS, KPA_BINS, VEmed_filled, 'VE_EXPORT.table')
 export(RPM_BINS, KPA_BINS, blurred_ve, 'VE_EXPORT_blurred.table')
 
+'''
