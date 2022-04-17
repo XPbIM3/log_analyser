@@ -19,7 +19,7 @@ SHIFT_AFR = 1
 HITS_NEEDED = 50
 T_FULLY_WARMED = 60
 STOICH = 14.7
-PERCENTILE = 0.5
+QUANTILE = 0.5
 BLURR_FACTOR = 0.5
 CONFIG_ATMO_6 = {'KPA_SLOPE':6, 'KPA_OFFSET':10, 'RPM_SLOPE':400,'RPM_OFFSET':600, 'AFR_MIN':15.0, 'AFR_MAX':12.5}
 CONFIG_TURBO_6 = {'KPA_SLOPE':12, 'KPA_OFFSET':30, 'RPM_SLOPE':400,'RPM_OFFSET':600, 'AFR_MIN':14.0, 'AFR_MAX':12.0}
@@ -29,7 +29,6 @@ assert CURRENT_CONFIG['KPA_SLOPE']%2 == 0
 assert CURRENT_CONFIG['RPM_SLOPE']%100 == 0
 
 
-print('PERCENTILE = ', PERCENTILE)
 
 #KPA_BINS = np.linspace(25,100,16)
 #RPM_BINS = np.linspace(400,7000,16)
@@ -64,13 +63,13 @@ def pywebioTableRepresentation(table:np.ndarray, xaxis:np.ndarray, yaxis:np.ndar
 
 
 
-def export(RPMS, KPAS, ZS, fname):
+def export(RPMS, KPAS, ZS, fname, dtype=int):
 	with open('VE.table.template', 'r') as t:
 		templ = t.read()
 
 	xax = "\n"+("\n".join(list(map(str, RPMS.astype(int)))))+"\n"
 	yax = "\n"+("\n".join(list(map(str, KPAS.astype(int)))))+"\n"
-	zax = "\n"+str(ZS.astype(int)).strip('[ ]').replace('[','').replace(']', '')+"\n"
+	zax = "\n"+str(ZS.astype(dtype)).strip('[ ]').replace('[','').replace(']', '')+"\n"
 
 
 	templ = templ.replace('_XAXIS_', xax)
@@ -81,22 +80,6 @@ def export(RPMS, KPAS, ZS, fname):
 		t.write(templ)
 
 
-
-def export_float(RPMS, KPAS, ZS, fname):
-	with open('VE.table.template', 'r') as t:
-		templ = t.read()
-
-	xax = "\n"+("\n".join(list(map(str, RPMS.astype(int)))))+"\n"
-	yax = "\n"+("\n".join(list(map(str, KPAS.astype(int)))))+"\n"
-	zax = "\n"+str(ZS.astype(float)).strip('[ ]').replace('[','').replace(']', '')+"\n"
-
-
-	templ = templ.replace('_XAXIS_', xax)
-	templ = templ.replace('_YAXIS_', yax)
-	templ = templ.replace('_ZAXIS_', zax)
-
-	with open(fname, 'w') as t:
-		t.write(templ)
 
 
 
@@ -164,7 +147,7 @@ for i in range(KPA_BINS.size):
 		pandas_frames[i][j] = data[(data.MAP>=kpa_min) & (data.MAP<kpa_max) & (data.RPM>=rpm_min) & (data.RPM<rpm_max)]
 		AFR_achieved[i][j] = pandas_frames[i][j].AFR.median()
 		VE_achieved[i][j]=pandas_frames[i][j].VE1.median()
-		AFR_mismatch[i][j]=pandas_frames[i][j]['corr_coef'].quantile(PERCENTILE)
+		AFR_mismatch[i][j]=pandas_frames[i][j]['corr_coef'].quantile(QUANTILE)
 		Lambda_achieved[i][j]=pandas_frames[i][j]['Lambda'].median()
 		Lambda_achieved_std[i][j]=pandas_frames[i][j]['Lambda'].std()
 
@@ -202,6 +185,6 @@ print("Lambda STD dev:")
 print(np.flipud(Lambda_achieved_std.astype(np.float64)))
 
 
-export_float(RPM_BINS, KPA_BINS, AFR_TABLE, 'AFR_EXPORT.table')
+export(RPM_BINS, KPA_BINS, AFR_TABLE, 'AFR_EXPORT.table', dtype=float)
 export(RPM_BINS, KPA_BINS, corrected_ve, 'VE_EXPORT.table')
 export(RPM_BINS, KPA_BINS, blurred_ve, 'VE_EXPORT_blurred.table')
