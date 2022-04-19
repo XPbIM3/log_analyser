@@ -64,7 +64,7 @@ def pywebioTableRepresentation(table:np.ndarray, xaxis:np.ndarray, yaxis:np.ndar
 
 
 def export(RPMS, KPAS, ZS, fname, dtype=int):
-	with open('VE.table.template', 'r') as t:
+	with open('./templates/VE.table.template', 'r') as t:
 		templ = t.read()
 
 	xax = "\n"+("\n".join(list(map(str, RPMS.astype(int)))))+"\n"
@@ -112,7 +112,7 @@ for fname in flist:
 
 data_raw = pd.concat(pd_frames)
 
-print(data_raw.describe)
+#print(data_raw.describe)
 
 data_raw.AFR = data_raw.AFR.shift(SHIFT_AFR)
 data_raw.Lambda = data_raw.Lambda.shift(SHIFT_AFR)
@@ -122,7 +122,7 @@ data_raw.Lambda = data_raw.Lambda.shift(SHIFT_AFR)
 
 data = data_raw[(data_raw.Gwarm==100) & (data_raw.RPM>0) & (data_raw.DFCO==0) & (data_raw['TPS DOT']==0) & (data_raw['Accel Enrich']==100)]
 data = data.dropna()
-print(data.describe)
+#print(data.describe)
 
 #data = data.assign(corr_coef = lambda x: x['AFR']/x['AFR Target'])
 #data['corr_coef'] = data.apply(lambda row: row['AFR']/row['AFR Target'], axis=1)
@@ -141,6 +141,7 @@ AFR_mismatch = np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
 pandas_frames = np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
 VE_predicted = np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
 VE_predicted_std = np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
+data_points_amount = np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
 
 
 for i in range(KPA_BINS.size):
@@ -148,6 +149,7 @@ for i in range(KPA_BINS.size):
 		kpa_min, kpa_max = getValueFromBin(i, KPA_BINS)
 		rpm_min, rpm_max = getValueFromBin(j, RPM_BINS)
 		pandas_frames[i][j] = data[(data.MAP>=kpa_min) & (data.MAP<kpa_max) & (data.RPM>=rpm_min) & (data.RPM<rpm_max)]
+		data_points_amount[i][j] = len(pandas_frames[i][j])
 		AFR_achieved[i][j] = pandas_frames[i][j].AFR.median()
 		VE_achieved[i][j]=pandas_frames[i][j].VE1.median()
 		VE_predicted[i][j]=pandas_frames[i][j]['ve_predicted'].quantile(QUANTILE)
@@ -158,6 +160,10 @@ for i in range(KPA_BINS.size):
 
 
 np.set_printoptions(floatmode = 'fixed',precision = 2, linewidth = 150, suppress = True)
+
+print("Data points amount:")
+print(np.flipud(data_points_amount.astype(int)))
+
 
 print("VE during RUN:")
 print(np.flipud(VE_achieved.astype(np.float64)))
@@ -171,6 +177,7 @@ print(np.flipud((corrected_ve).astype(np.float64)))
 
 
 blurred_ve = np.round(gaussian_filter(corrected_ve, sigma=BLURR_FACTOR)).astype(int)
+blurred_ve[corrected_ve==0] = VE_TABLE[corrected_ve==0]
 print("VE blurred:")
 print(np.flipud((blurred_ve).astype(np.float64)))
 
@@ -196,6 +203,9 @@ print("Lambda STD dev:")
 print(np.flipud(Lambda_achieved_std.astype(np.float64)))
 
 
-export(RPM_BINS, KPA_BINS, AFR_TABLE, 'AFR_EXPORT.table', dtype=float)
-export(RPM_BINS, KPA_BINS, corrected_ve, 'VE_EXPORT.table')
-export(RPM_BINS, KPA_BINS, blurred_ve, 'VE_EXPORT_blurred.table')
+
+export(RPM_BINS, KPA_BINS, AFR_TABLE, './exports/AFR_EXPORT.table', dtype=float)
+export(RPM_BINS, KPA_BINS, corrected_ve, './exports/VE_EXPORT.table')
+export(RPM_BINS, KPA_BINS, blurred_ve, './exports/VE_EXPORT_blurred.table')
+
+
