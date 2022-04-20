@@ -150,13 +150,14 @@ for i in range(KPA_BINS.size):
 		rpm_min, rpm_max = getValueFromBin(j, RPM_BINS)
 		pandas_frames[i][j] = data[(data.MAP>=kpa_min) & (data.MAP<kpa_max) & (data.RPM>=rpm_min) & (data.RPM<rpm_max)]
 		data_points_amount[i][j] = len(pandas_frames[i][j])
-		AFR_achieved[i][j] = pandas_frames[i][j].AFR.median()
-		VE_achieved[i][j]=pandas_frames[i][j].VE1.median()
-		VE_predicted[i][j]=pandas_frames[i][j]['ve_predicted'].quantile(QUANTILE)
-		VE_predicted_std[i][j]=pandas_frames[i][j]['ve_predicted'].std()
-		AFR_mismatch[i][j]=pandas_frames[i][j]['corr_coef'].median()
-		Lambda_achieved[i][j]=pandas_frames[i][j]['Lambda'].median()
-		Lambda_achieved_std[i][j]=pandas_frames[i][j]['Lambda'].std()
+		if data_points_amount[i,j]>=HITS_NEEDED:
+			AFR_achieved[i][j] = pandas_frames[i][j].AFR.median()
+			VE_achieved[i][j]=pandas_frames[i][j].VE1.median()
+			VE_predicted[i][j]=pandas_frames[i][j]['ve_predicted'].quantile(QUANTILE)
+			VE_predicted_std[i][j]=pandas_frames[i][j]['ve_predicted'].std()
+			AFR_mismatch[i][j]=pandas_frames[i][j]['corr_coef'].median()
+			Lambda_achieved[i][j]=pandas_frames[i][j]['Lambda'].median()
+			Lambda_achieved_std[i][j]=pandas_frames[i][j]['Lambda'].std()
 
 
 np.set_printoptions(floatmode = 'fixed',precision = 2, linewidth = 150, suppress = True)
