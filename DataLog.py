@@ -1,4 +1,5 @@
 import numpy as np
+np.set_printoptions(floatmode = 'fixed',precision = 2, linewidth = 150, suppress = True)
 #from xml_test import mstable
 import glob
 import pandas as pd
@@ -16,28 +17,28 @@ from TuneParser import *
 #USER settings section
 
 SHIFT_AFR = 1
-HITS_NEEDED = 50
+HITS_NEEDED = 10
 T_FULLY_WARMED = 60
 STOICH = 14.7
 QUANTILE = 0.5
 BLURR_FACTOR = 0.5
-CONFIG_ATMO_6 = {'KPA_SLOPE':6, 'KPA_OFFSET':10, 'RPM_SLOPE':400,'RPM_OFFSET':600, 'AFR_MIN':15.0, 'AFR_MAX':12.5}
-CONFIG_TURBO_6 = {'KPA_SLOPE':12, 'KPA_OFFSET':30, 'RPM_SLOPE':400,'RPM_OFFSET':600, 'AFR_MIN':14.0, 'AFR_MAX':12.0}
+CONFIG_ATMO_6 = {'KPA_MIN':24, 'KPA_MAX':100, 'RPM_MIN':400,'RPM_MAX':6000, 'AFR_MIN':14.5, 'AFR_MAX':12.5}
+CONFIG_TURBO_6 = {'KPA_MIN':24, 'KPA_MAX':200, 'RPM_MIN':400,'RPM_MAX':6000, 'AFR_MIN':14.5, 'AFR_MAX':12.0}
 
 CURRENT_CONFIG = CONFIG_ATMO_6
-assert CURRENT_CONFIG['KPA_SLOPE']%2 == 0
-assert CURRENT_CONFIG['RPM_SLOPE']%100 == 0
-
 
 
 #KPA_BINS = np.linspace(25,100,16)
 #RPM_BINS = np.linspace(400,7000,16)
 
-KPA_BINS = np.arange(16)*CURRENT_CONFIG['KPA_SLOPE']+CURRENT_CONFIG['KPA_OFFSET']
-RPM_BINS = np.arange(16)*CURRENT_CONFIG['RPM_SLOPE']+CURRENT_CONFIG['RPM_OFFSET']
+#KPA_BINS = np.arange(16)*CURRENT_CONFIG['KPA_SLOPE']+CURRENT_CONFIG['KPA_OFFSET']
+#RPM_BINS = np.arange(16)*CURRENT_CONFIG['RPM_SLOPE']+CURRENT_CONFIG['RPM_OFFSET']
+
+KPA_BINS = (np.round(np.linspace(CURRENT_CONFIG['KPA_MIN'],CURRENT_CONFIG['KPA_MAX'], 16))//2)*2
+RPM_BINS = (np.round(np.linspace(CURRENT_CONFIG['RPM_MIN'],CURRENT_CONFIG['RPM_MAX'], 16))//100)*100
 
 
-print("defaul bins:")
+print("default bins:")
 print(KPA_BINS)
 print(RPM_BINS)
 
@@ -45,15 +46,23 @@ print(RPM_BINS)
 
 VE_TABLE_DICT = {'table': 'veTable', 'xaxis': 'rpmBins', 'yaxis': 'fuelLoadBins'}
 AFR_TABLE_DICT = {'table': 'afrTable', 'xaxis': 'rpmBinsAFR', 'yaxis': 'loadBinsAFR'}
+IGN_TABLE_DICT = {'table': 'advTable1', 'xaxis': 'rpmBins2', 'yaxis': 'mapBins1'}
 F_NAME = 'CurrentTune.msq'
 RPM_BINS_VE, KPA_BINS_VE, table, VE_TABLE_FUNC = getTable(F_NAME,VE_TABLE_DICT)
 #RPM_BINS_AFR, KPA_BINS_AFR, table, AFR_TABLE_FUNC = getTable(F_NAME,AFR_TABLE_DICT)
+#RPM_BINS_IGN, KPA_BINS_IGN, table, IGN_TABLE_FUNC = getTable(F_NAME,IGN_TABLE_DICT)
 
 
 VE_TABLE = VE_TABLE_FUNC(RPM_BINS, KPA_BINS)
+#IGN_TABLE = IGN_TABLE_FUNC(RPM_BINS, KPA_BINS)
+
 AFR_TABLE = np.array([np.linspace(CURRENT_CONFIG['AFR_MIN'], CURRENT_CONFIG['AFR_MAX'], 16)]*16).transpose()
 #AFR_TABLE = AFR_TABLE_FUNC(RPM_BINS, KPA_BINS)
 AFR_TABLE_FUNC = scipy.interpolate.interp2d(RPM_BINS, KPA_BINS, AFR_TABLE)
+
+
+
+
 
 def pywebioTableRepresentation(table:np.ndarray, xaxis:np.ndarray, yaxis:np.ndarray):
 	ret = np.hstack([yaxis.reshape((16,1)), table])
@@ -80,7 +89,7 @@ def export(RPMS, KPAS, ZS, fname, dtype=int):
 		t.write(templ)
 
 
-
+#breakpoint()
 
 
 
@@ -120,7 +129,7 @@ data_raw.Lambda = data_raw.Lambda.shift(SHIFT_AFR)
 
 
 
-data = data_raw[(data_raw.Gwarm==100) & (data_raw.RPM>0) & (data_raw.DFCO==0) & (data_raw['TPS DOT']==0) & (data_raw['Accel Enrich']==100)]
+data = data_raw[(data_raw.Gwarm==100) & (data_raw.RPM>0) & (data_raw.DFCO==0)& (data_raw['rpm/s']>=-200) & (data_raw['Accel Enrich']==100)]
 data = data.dropna()
 #print(data.describe)
 
