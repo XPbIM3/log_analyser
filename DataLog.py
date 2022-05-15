@@ -24,11 +24,11 @@ QUANTILE = 0.5
 BLURR_FACTOR = 0.5
 CONFIG_ATMO_6 = {'KPA_MIN':24, 'KPA_MAX':100, 'RPM_MIN':400,'RPM_MAX':6000, 'AFR_MIN':14.5, 'AFR_MAX':12.5}
 CONFIG_TURBO_6 = {'KPA_MIN':24, 'KPA_MAX':230, 'RPM_MIN':400,'RPM_MAX':6000, 'AFR_MIN':14.5, 'AFR_MAX':12.0}
-CONFIG_TURBO_SR20 = {'KPA_MIN':24, 'KPA_MAX':200, 'RPM_MIN':400,'RPM_MAX':7000, 'AFR_MIN':14.5, 'AFR_MAX':12.0}
+CONFIG_TURBO_SR20 = {'KPA_MIN':24, 'KPA_MAX':200, 'RPM_MIN':600,'RPM_MAX':7000, 'AFR_MIN':14.5, 'AFR_MAX':12.0}
 
 
 
-CURRENT_CONFIG = CONFIG_TURBO_SR20
+CURRENT_CONFIG = CONFIG_ATMO_6
 
 #KPA_BINS = np.linspace(25,100,16)
 #RPM_BINS = np.linspace(400,7000,16)
@@ -126,7 +126,7 @@ data_raw.Lambda = data_raw.Lambda.shift(SHIFT_AFR)
 
 
 
-data = data_raw[(data_raw.Gwarm==100) & (data_raw.RPM>0) & (data_raw.DFCO==0)& (data_raw['rpm/s']>=-200) & (data_raw['Accel Enrich']==100)]
+data = data_raw[(data_raw.Gwarm==100) & (data_raw.RPM>0)& (data_raw.TPS>0)& (data_raw.DFCO==0)& (data_raw['rpm/s']>=-200) & (data_raw['Accel Enrich']==100)]
 data = data.dropna()
 #print(data.describe)
 
