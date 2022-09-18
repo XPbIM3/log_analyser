@@ -24,13 +24,14 @@ QUANTILE = 0.75
 BLURR_FACTOR = 0.5
 CONFIG_ATMO_6 = {'KPA_MIN':24, 'KPA_MAX':100, 'RPM_MIN':400,'RPM_MAX':6000, 'AFR_MIN':14.5, 'AFR_MAX':12.5}
 CONFIG_ATMO_M20 = {'KPA_MIN':28, 'KPA_MAX':100, 'RPM_MIN':400,'RPM_MAX':6000, 'AFR_MIN':14.5, 'AFR_MAX':12.5}
+CONFIG_TURBO_M20 = {'KPA_MIN':28, 'KPA_MAX':180, 'RPM_MIN':400,'RPM_MAX':6000, 'AFR_MIN':14.0, 'AFR_MAX':12.0}
 CONFIG_ATMO_VWKR = {'KPA_MIN':20, 'KPA_MAX':100, 'RPM_MIN':600,'RPM_MAX':6000, 'AFR_MIN':14.5, 'AFR_MAX':12.5}
 
 CONFIG_TURBO_6 = {'KPA_MIN':24, 'KPA_MAX':230, 'RPM_MIN':400,'RPM_MAX':6000, 'AFR_MIN':14.5, 'AFR_MAX':12.0}
 CONFIG_TURBO_SR20 = {'KPA_MIN':24, 'KPA_MAX':200, 'RPM_MIN':600,'RPM_MAX':7000, 'AFR_MIN':14.5, 'AFR_MAX':11.0}
 
 
-CURRENT_CONFIG = CONFIG_ATMO_VWKR
+CURRENT_CONFIG = CONFIG_TURBO_M20
 
 
 #KPA_BINS = np.linspace(25,100,16)
@@ -48,18 +49,18 @@ AFR_TABLE_DICT = {'table': 'afrTable', 'xaxis': 'rpmBinsAFR', 'yaxis': 'loadBins
 IGN_TABLE_DICT = {'table': 'advTable1', 'xaxis': 'rpmBins2', 'yaxis': 'mapBins1'}
 F_NAME = 'CurrentTune.msq'
 RPM_BINS_VE, KPA_BINS_VE, table, VE_TABLE_FUNC = getTable(F_NAME,VE_TABLE_DICT)
-#RPM_BINS_AFR, KPA_BINS_AFR, table, AFR_TABLE_FUNC = getTable(F_NAME,AFR_TABLE_DICT)
+RPM_BINS_AFR, KPA_BINS_AFR, table, AFR_TABLE_FUNC = getTable(F_NAME,AFR_TABLE_DICT)
 #RPM_BINS_IGN, KPA_BINS_IGN, table, IGN_TABLE_FUNC = getTable(F_NAME,IGN_TABLE_DICT)
 
 
-#KPA_BINS = ((np.round(np.linspace(CURRENT_CONFIG['KPA_MIN'],CURRENT_CONFIG['KPA_MAX'], 16))//2)*2).astype(int)
-KPA_BINS = KPA_BINS_VE
-#RPM_BINS = ((np.round(np.linspace(CURRENT_CONFIG['RPM_MIN'],CURRENT_CONFIG['RPM_MAX'], 16))//100)*100).astype(int)
-RPM_BINS = RPM_BINS_VE
+KPA_BINS = ((np.round(np.linspace(CURRENT_CONFIG['KPA_MIN'],CURRENT_CONFIG['KPA_MAX'], 16))//2)*2).astype(int)
+RPM_BINS = ((np.round(np.linspace(CURRENT_CONFIG['RPM_MIN'],CURRENT_CONFIG['RPM_MAX'], 16))//100)*100).astype(int)
+#KPA_BINS = KPA_BINS_VE
+#№RPM_BINS = RPM_BINS_VE
 
 
 
-print("default bins:")
+print("bins:")
 print(KPA_BINS)
 print(RPM_BINS)
 
@@ -98,8 +99,6 @@ def export(RPMS, KPAS, ZS, fname, dtype=int):
 		t.write(templ)
 
 
-#breakpoint()
-
 
 
 
@@ -111,9 +110,12 @@ def getValueFromBin(val:int, bins:np.ndarray):
 	midvalues = []
 	for i in range(bins.size-1):
 		midvalues.append((bins[i]+bins[i+1])/2)
-	midvalues = [0.0] + midvalues + [900.0]
+	CONST=0
+	midvalues = [0.0] + midvalues + [bins[-1]*2.0]
+	minval_index = np.max([val-CONST, 0])
+	maxval_index = np.min([val+1+CONST, len(midvalues)-1])
 
-	return (midvalues[val], midvalues[val+1])
+	return (midvalues[minval_index], midvalues[maxval_index])
 
 
 
@@ -138,7 +140,7 @@ data_raw.Lambda = data_raw.Lambda.shift(SHIFT_AFR)
 
 
 
-data = data_raw[(data_raw.Gwarm==100) & (data_raw.RPM>0)& (data_raw.TPS>0)& (data_raw.DFCO==0)& (data_raw['rpm/s']>=-0) & (data_raw['Accel Enrich']==100)]
+data = data_raw[(data_raw.Gwarm==100) & (data_raw.RPM>0)& (data_raw.DFCO==0)& (data_raw['rpm/s']>=-1000) & (data_raw['Accel Enrich']==100)]
 data = data.dropna()
 #print(data.describe)
 
@@ -155,7 +157,6 @@ AFR_achieved =  np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
 Lambda_achieved =  np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
 Lambda_achieved_std =  np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
 VE_achieved = np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
-AFR_mismatch = np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
 pandas_frames = np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
 VE_predicted = np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
 VE_predicted_std = np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
@@ -166,19 +167,22 @@ for i in range(KPA_BINS.size):
 	for j in range(RPM_BINS.size):
 		kpa_min, kpa_max = getValueFromBin(i, KPA_BINS)
 		rpm_min, rpm_max = getValueFromBin(j, RPM_BINS)
-		pandas_frames[i][j] = data[(data.MAP>=kpa_min) & (data.MAP<kpa_max) & (data.RPM>=rpm_min) & (data.RPM<rpm_max)]
+		pandas_frames[i][j] = data[(data.MAP>=kpa_min) & (data.MAP<=kpa_max) & (data.RPM>=rpm_min) & (data.RPM<=rpm_max)]
 		data_points_amount[i][j] = len(pandas_frames[i][j])
 		if data_points_amount[i,j]>=HITS_NEEDED:
 			AFR_achieved[i][j] = pandas_frames[i][j].AFR.median()
 			VE_achieved[i][j]=pandas_frames[i][j].VE1.median()
 			VE_predicted[i][j]=pandas_frames[i][j]['ve_predicted'].quantile(QUANTILE)
 			VE_predicted_std[i][j]=pandas_frames[i][j]['ve_predicted'].std()
-			AFR_mismatch[i][j]=pandas_frames[i][j]['corr_coef'].median()
 			Lambda_achieved[i][j]=pandas_frames[i][j]['Lambda'].median()
 			Lambda_achieved_std[i][j]=pandas_frames[i][j]['Lambda'].std()
 
 
 np.set_printoptions(floatmode = 'fixed',precision = 2, linewidth = 150, suppress = True)
+
+print("VE from tune:")
+print(np.flipud(VE_TABLE.astype(np.float64)))
+
 
 print("Data points amount:")
 print(np.flipud(data_points_amount.astype(int)))
@@ -186,6 +190,8 @@ print(np.flipud(data_points_amount.astype(int)))
 
 print("VE during RUN:")
 print(np.flipud(VE_achieved.astype(np.float64)))
+
+
 
 corrected_ve = VE_predicted.astype(np.float64)
 corrected_ve = np.nan_to_num(corrected_ve.astype(np.float64))
@@ -211,8 +217,6 @@ print("AFR during RUN:")
 print(np.flipud(AFR_achieved.astype(np.float64)))
 
 
-print("AFR corr coef:")
-print(np.flipud(AFR_mismatch.astype(np.float64)))
 
 
 print("Lambda achieved:")
@@ -220,6 +224,13 @@ print(np.flipud(Lambda_achieved.astype(np.float64)))
 
 print("Lambda STD dev:")
 print(np.flipud(Lambda_achieved_std.astype(np.float64)))
+
+print("VE increased +:")
+print(np.flipud(np.round(corrected_ve-VE_TABLE)))
+
+print("VE increased %:")
+print(np.flipud(corrected_ve/VE_TABLE))
+
 
 
 
