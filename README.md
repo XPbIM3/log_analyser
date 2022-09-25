@@ -13,5 +13,5 @@ the output is VE_TABLE achieved from analysing AFR miss coefficient during run -
 
 Things to note:  
 1)there is hardcoded condition inside script what data to be used:  TPS position >0,  fully warmed,  not in deccelrating state...etc  
-2)AFR table will be generated from initial constants
+2)AFR table will be generated from initial constants  
 3)Your tune must have a correct injector input lag set. Otherwise this will lead to wrong VE table
