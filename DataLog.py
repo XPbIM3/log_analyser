@@ -2,9 +2,9 @@ import numpy as np
 np.set_printoptions(floatmode = 'fixed',precision = 2, linewidth = 150, suppress = True)
 import glob
 import pandas as pd
-import scipy
+#import scipy
 
-from TuneParser import *
+from lib.TuneParser import *
 
 
 #USER settings section
@@ -25,11 +25,13 @@ CONFIG_TURBO_SR20 = {'KPA_MIN':24, 'KPA_MAX':200, 'RPM_MIN':600,'RPM_MAX':7000, 
 
 CURRENT_CONFIG = CONFIG_TURBO_M20
 
+############################################
+
 
 VE_TABLE_DICT = {'table': 'veTable', 'xaxis': 'rpmBins', 'yaxis': 'fuelLoadBins'}
 AFR_TABLE_DICT = {'table': 'afrTable', 'xaxis': 'rpmBinsAFR', 'yaxis': 'loadBinsAFR'}
 IGN_TABLE_DICT = {'table': 'advTable1', 'xaxis': 'rpmBins2', 'yaxis': 'mapBins1'}
-F_NAME = 'CurrentTune.msq'
+F_NAME = './input/CurrentTune.msq'
 RPM_BINS_VE, KPA_BINS_VE, _, VE_TABLE_FUNC = getTable(F_NAME,VE_TABLE_DICT)
 RPM_BINS_AFR, KPA_BINS_AFR, _, AFR_TABLE_FUNC = getTable(F_NAME,AFR_TABLE_DICT)
 RPM_BINS_IGN, KPA_BINS_IGN, _, IGN_TABLE_FUNC = getTable(F_NAME,IGN_TABLE_DICT)
@@ -82,7 +84,7 @@ def getBinFromValue(value:float, bins:np.ndarray):
 	return np.argmin(np.abs(value-bins))
 
 
-flist = glob.glob("./logs/*.msl")
+flist = glob.glob("./input/*.msl")
 
 
 
@@ -190,5 +192,5 @@ print(np.flipud(weighted_ve/VE_TABLE))
 
 
 
-export(RPM_BINS, KPA_BINS, AFR_TABLE, './exports/AFR_EXPORT.table', dtype=float)
-export(RPM_BINS, KPA_BINS, weighted_ve, './exports/VE_EXPORT.table')
+export(RPM_BINS, KPA_BINS, AFR_TABLE, './output/AFR_EXPORT.table', dtype=float)
+export(RPM_BINS, KPA_BINS, weighted_ve, './output/VE_EXPORT.table')
