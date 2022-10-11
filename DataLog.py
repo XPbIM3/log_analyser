@@ -1,4 +1,5 @@
 import numpy as np
+
 np.set_printoptions(floatmode = 'fixed',precision = 2, linewidth = 150, suppress = True)
 import glob
 import pandas as pd
@@ -18,7 +19,7 @@ MARGIN=1.0
 
 CONFIG_ATMO_6 = {'KPA_MIN':24, 'KPA_MAX':100, 'RPM_MIN':400,'RPM_MAX':6000, 'AFR_MIN':14.5, 'AFR_MAX':12.5}
 CONFIG_ATMO_M20 = {'KPA_MIN':28, 'KPA_MAX':100, 'RPM_MIN':400,'RPM_MAX':6000, 'AFR_MIN':14.5, 'AFR_MAX':12.5}
-CONFIG_TURBO_M20 = {'KPA_MIN':28, 'KPA_MAX':180, 'RPM_MIN':400,'RPM_MAX':6000, 'AFR_MIN':14.0, 'AFR_MAX':12.0}
+CONFIG_TURBO_M20 = {'KPA_MIN':28, 'KPA_MAX':180, 'RPM_MIN':400,'RPM_MAX':6000, 'AFR_MIN':14.5, 'AFR_MAX':12.0}
 CONFIG_ATMO_VWKR = {'KPA_MIN':20, 'KPA_MAX':100, 'RPM_MIN':600,'RPM_MAX':6000, 'AFR_MIN':14.5, 'AFR_MAX':12.5}
 CONFIG_TURBO_SR20 = {'KPA_MIN':24, 'KPA_MAX':200, 'RPM_MIN':600,'RPM_MAX':7000, 'AFR_MIN':14.5, 'AFR_MAX':11.0}
 
@@ -112,85 +113,49 @@ data['ve_predicted'] = data.apply(lambda row: row['VE1']*row['corr_coef'], axis=
 
 #prepare a VE bins for statistical work
 
-AFR_achieved =  np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
-Lambda_achieved =  np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
-Lambda_achieved_std =  np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
-VE_achieved = np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
-pandas_frames = np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
-VE_predicted = np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
-VE_predicted_weightened = np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
-
-VE_predicted_std = np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
-data_points_amount = np.empty((KPA_BINS.size,RPM_BINS.size), dtype = object)
+AFR_achieved =  np.full((KPA_BINS.size,RPM_BINS.size),np.nan, dtype = float)
+Lambda_achieved =  np.full((KPA_BINS.size,RPM_BINS.size),np.nan, dtype = float)
+VE_predicted_weightened = np.empty((KPA_BINS.size,RPM_BINS.size), dtype = int)
 
 
 for i in range(KPA_BINS.size):
 	for j in range(RPM_BINS.size):
 		kpa_min, kpa_max = np.max([KPA_BINS[i]-KPA_MARGIN, 0]),  np.min([KPA_BINS[i]+KPA_MARGIN, 900])
 		rpm_min, rpm_max = np.max([RPM_BINS[j]-RPM_MARGIN, 0]),  np.min([RPM_BINS[j]+RPM_MARGIN, 10000])
-		pandas_frames[i][j] = data[(data.MAP>=kpa_min) & (data.MAP<=kpa_max) & (data.RPM>=rpm_min) & (data.RPM<=rpm_max)]
-		data_points_amount[i][j] = len(pandas_frames[i][j])
-		if data_points_amount[i,j]>=HITS_NEEDED:
-
-			pd_local_frame = pandas_frames[i][j]
+		pd_local_frame = data[(data.MAP>=kpa_min) & (data.MAP<=kpa_max) & (data.RPM>=rpm_min) & (data.RPM<=rpm_max)]
+		data_points_amount = len(pd_local_frame)
+		if data_points_amount>=HITS_NEEDED:
 			rpms_np = pd_local_frame['RPM'].to_numpy(dtype=int)
 			kpas_np = pd_local_frame['MAP'].to_numpy(dtype=int)
-			ves_np = pd_local_frame['ve_predicted'].to_numpy(dtype=np.float32)
+			ves_np = pd_local_frame['ve_predicted'].to_numpy(dtype=float)
 			x_dist = np.abs(rpms_np - RPM_BINS[j])/RPM_MARGIN
 			y_dist = np.abs(kpas_np - KPA_BINS[i])/KPA_MARGIN
 			weights = 1-((np.sqrt(x_dist**2 + y_dist**2))/(np.sqrt(2.0)))
 			weights = weights/np.sum(weights)
-			VE_predicted_weightened[i][j] = np.sum(ves_np * weights)
+			VE_predicted_weightened[i][j] = int(np.round(np.sum(ves_np * weights)))
+			AFR_achieved[i][j] = float(pd_local_frame.AFR.median())
+			Lambda_achieved[i][j] = float(pd_local_frame['Lambda'].median())
 
-
-
-			AFR_achieved[i][j] = pd_local_frame.AFR.median()
-			VE_predicted[i][j] = pd_local_frame['ve_predicted'].quantile(QUANTILE)
-			Lambda_achieved[i][j] = pd_local_frame['Lambda'].median()
 
 
 np.set_printoptions(floatmode = 'fixed',precision = 2, linewidth = 150, suppress = True)
-
-print("VE opened from tune:")
-print(np.flipud(VE_TABLE.astype(np.float64)))
-
-
-print("Data points amount during RUN:")
-print(np.flipud(data_points_amount.astype(int)))
-
-
-corrected_ve = VE_predicted.astype(np.float64)
-corrected_ve = np.nan_to_num(corrected_ve.astype(np.float64))
-corrected_ve[corrected_ve==0] = VE_TABLE[corrected_ve==0]
-
-print("VE predicted:")
-print(np.flipud((corrected_ve).astype(np.float64)))
-
-weighted_ve = VE_predicted_weightened.astype(np.float64)
-weighted_ve = np.nan_to_num(weighted_ve.astype(np.float64))
+weighted_ve = VE_predicted_weightened.astype(float)
 weighted_ve[weighted_ve==0] = VE_TABLE[weighted_ve==0]
 
 print("VE predicted weighted:")
-print(np.flipud((weighted_ve).astype(np.float64)))
+print(np.flipud(weighted_ve))
 
+print("median AFR achieved during RUN:")
+print(np.flipud(AFR_achieved))
 
-
-
-
-print("AFR achieved during RUN:")
-print(np.flipud(AFR_achieved.astype(np.float64)))
-
-print("Lambda achieved during RUN:")
-print(np.flipud(Lambda_achieved.astype(np.float64)))
+print("median Lambda achieved during RUN:")
+print(np.flipud(Lambda_achieved))
 
 print("VE increased +:")
 print(np.flipud(np.round(weighted_ve-VE_TABLE)))
 
 print("VE increased %:")
 print(np.flipud(weighted_ve/VE_TABLE))
-
-
-
 
 export(RPM_BINS, KPA_BINS, AFR_TABLE, './output/AFR_EXPORT.table', dtype=float)
 export(RPM_BINS, KPA_BINS, weighted_ve, './output/VE_EXPORT.table')
