@@ -1,13 +1,8 @@
 import numpy as np
-
 np.set_printoptions(floatmode = 'fixed',precision = 2, linewidth = 150, suppress = True)
 import glob
 import pandas as pd
-#import scipy
-
 from lib.TuneParser import *
-
-
 #USER settings section
 
 SHIFT_AFR = 1
@@ -115,7 +110,7 @@ data['ve_predicted'] = data.apply(lambda row: row['VE1']*row['corr_coef'], axis=
 
 AFR_achieved =  np.full((KPA_BINS.size,RPM_BINS.size),np.nan, dtype = float)
 Lambda_achieved =  np.full((KPA_BINS.size,RPM_BINS.size),np.nan, dtype = float)
-VE_predicted_weightened = np.empty((KPA_BINS.size,RPM_BINS.size), dtype = int)
+VE_predicted_weightened = np.zeros((KPA_BINS.size,RPM_BINS.size), dtype = int)
 
 
 for i in range(KPA_BINS.size):
@@ -137,10 +132,9 @@ for i in range(KPA_BINS.size):
 			Lambda_achieved[i][j] = float(pd_local_frame['Lambda'].median())
 
 
-
-np.set_printoptions(floatmode = 'fixed',precision = 2, linewidth = 150, suppress = True)
-weighted_ve = VE_predicted_weightened.astype(float)
+weighted_ve = VE_predicted_weightened.copy()
 weighted_ve[weighted_ve==0] = VE_TABLE[weighted_ve==0]
+
 
 print("VE predicted weighted:")
 print(np.flipud(weighted_ve))
