@@ -9,7 +9,7 @@ SHIFT_AFR = 1
 HITS_NEEDED = 10
 QUANTILE = 0.75
 MARGIN=1.0
-
+GENERATE_AFR_TABLE = True
 
 
 CONFIG_ATMO_6 = {'KPA_MIN':24, 'KPA_MAX':100, 'RPM_MIN':400,'RPM_MAX':6000, 'AFR_MIN':14.5, 'AFR_MAX':12.5}
@@ -46,14 +46,13 @@ print(RPM_BINS)
 
 
 VE_TABLE = VE_TABLE_FUNC(RPM_BINS, KPA_BINS)
-#IGN_TABLE = IGN_TABLE_FUNC(RPM_BINS, KPA_BINS)
-AFR_TABLE = np.array([np.linspace(CURRENT_CONFIG['AFR_MIN'], CURRENT_CONFIG['AFR_MAX'], 16)]*16).transpose()
-#AFR_TABLE = AFR_TABLE_FUNC(RPM_BINS, KPA_BINS)
-AFR_TABLE_FUNC = scipy.interpolate.interp2d(RPM_BINS, KPA_BINS, AFR_TABLE)
+IGN_TABLE = IGN_TABLE_FUNC(RPM_BINS, KPA_BINS)
 
-
-
-
+if GENERATE_AFR_TABLE:
+	AFR_TABLE = np.array([np.linspace(CURRENT_CONFIG['AFR_MIN'], CURRENT_CONFIG['AFR_MAX'], 16)]*16).transpose()
+	AFR_TABLE_FUNC = scipy.interpolate.interp2d(RPM_BINS, KPA_BINS, AFR_TABLE)
+else:
+	AFR_TABLE = AFR_TABLE_FUNC(RPM_BINS, KPA_BINS)
 
 
 def export(RPMS, KPAS, ZS, fname, dtype=int):
@@ -73,16 +72,11 @@ def export(RPMS, KPAS, ZS, fname, dtype=int):
 		t.write(templ)
 
 
-
-
-
 def getBinFromValue(value:float, bins:np.ndarray):
 	return np.argmin(np.abs(value-bins))
 
 
 flist = glob.glob("./input/*.msl")
-
-
 
 
 pd_frames = []
@@ -101,12 +95,11 @@ data_raw.Lambda = data_raw.Lambda.shift(SHIFT_AFR)
 
 data = data_raw[(data_raw.Gwarm==100) & (data_raw.RPM>0)& (data_raw.DFCO==0)& (data_raw['rpm/s']>=-1000) & (data_raw['Accel Enrich']==100) & (data_raw.TPS>0.0)]
 data = data.dropna()
+
 data['afr_target_func'] = data.apply(lambda row: AFR_TABLE_FUNC(row['RPM'], row['MAP'])[0], axis=1)
 data['corr_coef'] = data.apply(lambda row: row['AFR']/row['afr_target_func'], axis=1)
 data['ve_predicted'] = data.apply(lambda row: row['VE1']*row['corr_coef'], axis=1)
 
-
-#prepare a VE bins for statistical work
 
 AFR_achieved =  np.full((KPA_BINS.size,RPM_BINS.size),np.nan, dtype = float)
 Lambda_achieved =  np.full((KPA_BINS.size,RPM_BINS.size),np.nan, dtype = float)
