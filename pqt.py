@@ -18,31 +18,34 @@ def getBGColor(value, min, max):
     r=int(r*255)
     g=int(g*255)
     b=int(b*255)
+    a = 150
 
     #b = np.clip(int(((1-coeff)*2)*255), 0,255)
     #r = np.clip(int((coeff*2)*255), 0, 255)
     #g = 0
-    return (r,g,b)
+    return (r,g,b,a)
 
 
 
 
 class MSTableCellWidget(QLabel):
-    def __init__(self, value = np.nan, bgcolor=(255,255,255)):
-        assert len(bgcolor)==3
+    def __init__(self, value = np.nan, bgcolor=(255,255,255,0)):
+        assert len(bgcolor)==4
         if value != np.nan:
             super().__init__(str(value))
-            self.setStyleSheet(f'background-color: rgb{bgcolor}')
+            self.setStyleSheet(f'background: rgba{bgcolor}')
+            #self.setStyleSheet(f'background: rgba(255,255,255,0)')
 
 class MSTable(QTableWidget):
     def __init__(self, xaxis, yaxis, table:np.ndarray):
-        assert len(xaxis)==16
-        assert len(yaxis)==16
         assert table.ndim == 2
-        assert table.shape == (16,16)
         super().__init__()
-        self.setRowCount(16)
-        self.setColumnCount(16)
+        self.y_shape = len(yaxis)
+        self.x_shape = len(xaxis)
+        assert table.shape == (self.y_shape,self.x_shape)
+
+        self.setRowCount(self.x_shape)
+        self.setColumnCount(self.y_shape)
         table = np.flipud(table)
         self.table = table
         self.min_val = np.min(table)
@@ -50,10 +53,10 @@ class MSTable(QTableWidget):
 
         x_axis = list(map(str, xaxis))
         y_axis = list(map(str, yaxis))[::-1]
-        for i in range(16):
+        for i in range(self.x_shape):
             self.setColumnWidth(i,40)
-        for i in range(16):
-            for j in range(16):
+        for i in range(self.x_shape):
+            for j in range(self.y_shape):
                 color = getBGColor(table[i,j], self.min_val, self.max_val)
                 self.setCellWidget(i,j, MSTableCellWidget(table[i,j], color))
         self.setHorizontalHeaderLabels(x_axis)
