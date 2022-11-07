@@ -32,7 +32,7 @@ class MSTableCellWidget(QLabel):
     def __init__(self, value = np.nan, bgcolor=(255,255,255,0)):
         assert len(bgcolor)==4
         if value != np.nan:
-            super().__init__(str(value))
+            super().__init__(str(int(np.round(value))))
             self.setStyleSheet(f'background: rgba{bgcolor}')
             #self.setStyleSheet(f'background: rgba(255,255,255,0)')
 
@@ -54,7 +54,7 @@ class MSTable(QTableWidget):
         x_axis = list(map(str, xaxis))
         y_axis = list(map(str, yaxis))[::-1]
         for i in range(self.x_shape):
-            self.setColumnWidth(i,40)
+            self.setColumnWidth(i,20)
         for i in range(self.x_shape):
             for j in range(self.y_shape):
                 color = getBGColor(table[i,j], self.min_val, self.max_val)
@@ -71,5 +71,5 @@ app = QApplication(sys.argv)
 RPM_BINS_VE, KPA_BINS_VE, VE_TABLE, VE_TABLE_FUNC = getTable(F_NAME,VE_TABLE_DICT)
 table = MSTable(RPM_BINS_VE, KPA_BINS_VE, VE_TABLE)
 table.show()
-#app.exec()
+app.exec()
 
