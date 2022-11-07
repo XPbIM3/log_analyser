@@ -7,19 +7,18 @@ from lib.TuneParser import *
 
 SHIFT_AFR = 1
 HITS_NEEDED = 10
-QUANTILE = 0.75
 MARGIN=1.0
 GENERATE_AFR_TABLE = True
-
+GENERATE_AXES = False
 
 CONFIG_ATMO_6 = {'KPA_MIN':24, 'KPA_MAX':100, 'RPM_MIN':400,'RPM_MAX':6000, 'AFR_MIN':14.5, 'AFR_MAX':12.5}
+CONFIG_ATMO_M104 = {'KPA_MIN':10, 'KPA_MAX':100, 'RPM_MIN':400,'RPM_MAX':7000, 'AFR_MIN':15.0, 'AFR_MAX':12.5}
 CONFIG_ATMO_M20 = {'KPA_MIN':28, 'KPA_MAX':100, 'RPM_MIN':400,'RPM_MAX':6000, 'AFR_MIN':14.5, 'AFR_MAX':12.5}
 CONFIG_TURBO_M20 = {'KPA_MIN':28, 'KPA_MAX':180, 'RPM_MIN':400,'RPM_MAX':6000, 'AFR_MIN':14.5, 'AFR_MAX':12.0}
 CONFIG_ATMO_VWKR = {'KPA_MIN':20, 'KPA_MAX':100, 'RPM_MIN':600,'RPM_MAX':6000, 'AFR_MIN':14.5, 'AFR_MAX':12.5}
 CONFIG_TURBO_SR20 = {'KPA_MIN':24, 'KPA_MAX':200, 'RPM_MIN':600,'RPM_MAX':7000, 'AFR_MIN':14.5, 'AFR_MAX':11.0}
 
-
-CURRENT_CONFIG = CONFIG_TURBO_M20
+CURRENT_CONFIG = CONFIG_ATMO_M104
 
 ############################################
 
@@ -33,8 +32,14 @@ RPM_BINS_AFR, KPA_BINS_AFR, _, AFR_TABLE_FUNC = getTable(F_NAME,AFR_TABLE_DICT)
 RPM_BINS_IGN, KPA_BINS_IGN, _, IGN_TABLE_FUNC = getTable(F_NAME,IGN_TABLE_DICT)
 
 
-KPA_BINS = ((np.round(np.linspace(CURRENT_CONFIG['KPA_MIN'],CURRENT_CONFIG['KPA_MAX'], 16))//2)*2).astype(int)
-RPM_BINS = ((np.round(np.linspace(CURRENT_CONFIG['RPM_MIN'],CURRENT_CONFIG['RPM_MAX'], 16))//100)*100).astype(int)
+if GENERATE_AXES == False:
+	KPA_BINS = KPA_BINS_VE
+	RPM_BINS = RPM_BINS_VE
+else:
+	KPA_BINS = ((np.round(np.linspace(CURRENT_CONFIG['KPA_MIN'],CURRENT_CONFIG['KPA_MAX'], 16))//2)*2).astype(int)
+	RPM_BINS = ((np.round(np.linspace(CURRENT_CONFIG['RPM_MIN'],CURRENT_CONFIG['RPM_MAX'], 16))//100)*100).astype(int)
+
+
 KPA_MARGIN = ((CURRENT_CONFIG['KPA_MAX'] - CURRENT_CONFIG['KPA_MIN'])//15)*MARGIN
 RPM_MARGIN = ((CURRENT_CONFIG['RPM_MAX'] - CURRENT_CONFIG['RPM_MIN'])//15)*MARGIN
 
@@ -92,9 +97,12 @@ data_raw.Lambda = data_raw.Lambda.shift(SHIFT_AFR)
 
 
 
-
+print(f"Data Total: {len(data_raw)}")
 data = data_raw[(data_raw.Gwarm==100) & (data_raw.RPM>0)& (data_raw.DFCO==0)& (data_raw['rpm/s']>=-1000) & (data_raw['Accel Enrich']==100) & (data_raw.TPS>0.0)]
+#data = data_raw[(data_raw.RPM>0)& (data_raw.DFCO==0)]
 data = data.dropna()
+print(f"Data Used: {len(data)}")
+
 
 data['afr_target_func'] = data.apply(lambda row: AFR_TABLE_FUNC(row['RPM'], row['MAP'])[0], axis=1)
 data['corr_coef'] = data.apply(lambda row: row['AFR']/row['afr_target_func'], axis=1)
