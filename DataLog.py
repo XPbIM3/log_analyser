@@ -4,21 +4,24 @@ import glob
 import pandas as pd
 from lib.TuneParser import *
 #USER settings section
+import matplotlib.pyplot as plt
+
+
 
 SHIFT_AFR = 1
 HITS_NEEDED = 10
 MARGIN=1.0
 GENERATE_AFR_TABLE = True
-GENERATE_AXES = False
+GENERATE_AXES = True
 
 CONFIG_ATMO_6 = {'KPA_MIN':24, 'KPA_MAX':100, 'RPM_MIN':400,'RPM_MAX':6000, 'AFR_MIN':14.5, 'AFR_MAX':12.5}
 CONFIG_ATMO_M104 = {'KPA_MIN':10, 'KPA_MAX':100, 'RPM_MIN':400,'RPM_MAX':7000, 'AFR_MIN':15.0, 'AFR_MAX':12.5}
 CONFIG_ATMO_M20 = {'KPA_MIN':28, 'KPA_MAX':100, 'RPM_MIN':400,'RPM_MAX':6000, 'AFR_MIN':14.5, 'AFR_MAX':12.5}
-CONFIG_TURBO_M20 = {'KPA_MIN':28, 'KPA_MAX':180, 'RPM_MIN':400,'RPM_MAX':6000, 'AFR_MIN':14.5, 'AFR_MAX':12.0}
+CONFIG_TURBO_M20 = {'KPA_MIN':28, 'KPA_MAX':160, 'RPM_MIN':400,'RPM_MAX':6000, 'AFR_MIN':14.5, 'AFR_MAX':12.0}
 CONFIG_ATMO_VWKR = {'KPA_MIN':20, 'KPA_MAX':100, 'RPM_MIN':600,'RPM_MAX':6000, 'AFR_MIN':14.5, 'AFR_MAX':12.5}
 CONFIG_TURBO_SR20 = {'KPA_MIN':24, 'KPA_MAX':200, 'RPM_MIN':600,'RPM_MAX':7000, 'AFR_MIN':14.5, 'AFR_MAX':11.0}
 
-CURRENT_CONFIG = CONFIG_ATMO_M104
+CURRENT_CONFIG = CONFIG_TURBO_M20
 
 ############################################
 
@@ -137,6 +140,27 @@ weighted_ve = VE_predicted_weightened.copy()
 weighted_ve[weighted_ve==0] = VE_TABLE[weighted_ve==0]
 
 
+def plot_array(x_axis: list, y_axis: list, arr: np.ndarray):
+	arr = np.flipud(arr)
+	x_axis_size = arr.shape[0]
+	y_axis_size = arr.shape[0]
+	x_ticks = np.arange(0, x_axis_size)
+	y_ticks = np.arange(0, y_axis_size)
+	x_labels = [str(i) for i in x_axis]
+	y_labels = [str(i) for i in y_axis][::-1]
+
+	plt.figure(figsize=(10, 6))
+	plt.imshow(arr, interpolation='none')
+	for i in range(x_axis_size):
+		for j in range(y_axis_size):
+			plt.text(j, i, f'{(arr[i, j]):.2f}', ha='center', va='center', color='black', size=5)
+
+	plt.xticks(ticks=x_ticks, labels=x_labels, size=6)
+	plt.yticks(ticks=y_ticks, labels=y_labels, size=6)
+	plt.show()
+
+
+
 print("VE predicted weighted:")
 print(np.flipud(weighted_ve))
 
@@ -147,6 +171,10 @@ print("median Lambda achieved during RUN:")
 print(np.flipud(Lambda_achieved))
 
 print("VE increased +:")
+
+#ve_delta = np.flipud(np.round(weighted_ve-VE_TABLE))
+#plot_array(RPM_BINS, KPA_BINS, ve_delta)
+
 print(np.flipud(np.round(weighted_ve-VE_TABLE)))
 
 print("VE increased %:")
