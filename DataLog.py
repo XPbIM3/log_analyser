@@ -12,7 +12,12 @@ SHIFT_AFR = 1
 HITS_NEEDED = 10
 MARGIN=1.0
 GENERATE_AFR_TABLE = True
-GENERATE_AXES = True
+GENERATE_AXES = False
+KPA_BINS_AMOUNT = 16
+RPM_BINS_AMOUNT = 16
+RPM_QUANT = 100
+KPA_QUANT = 2
+
 
 CONFIG_ATMO_6 = {'KPA_MIN':24, 'KPA_MAX':100, 'RPM_MIN':400,'RPM_MAX':6000, 'AFR_MIN':14.5, 'AFR_MAX':12.5}
 CONFIG_ATMO_M104 = {'KPA_MIN':10, 'KPA_MAX':100, 'RPM_MIN':400,'RPM_MAX':7000, 'AFR_MIN':15.0, 'AFR_MAX':12.5}
@@ -39,12 +44,12 @@ if GENERATE_AXES == False:
     KPA_BINS = KPA_BINS_VE
     RPM_BINS = RPM_BINS_VE
 else:
-    KPA_BINS = ((np.round(np.linspace(CURRENT_CONFIG['KPA_MIN'],CURRENT_CONFIG['KPA_MAX'], 16))//2)*2).astype(int)
-    RPM_BINS = ((np.round(np.linspace(CURRENT_CONFIG['RPM_MIN'],CURRENT_CONFIG['RPM_MAX'], 16))//100)*100).astype(int)
+    KPA_BINS = ((np.round(np.linspace(CURRENT_CONFIG['KPA_MIN'],CURRENT_CONFIG['KPA_MAX'], KPA_BINS_AMOUNT)) // KPA_QUANT) * KPA_QUANT).astype(int)
+    RPM_BINS = ((np.round(np.linspace(CURRENT_CONFIG['RPM_MIN'],CURRENT_CONFIG['RPM_MAX'], RPM_BINS_AMOUNT)) // RPM_QUANT) * RPM_QUANT).astype(int)
 
 
-KPA_MARGIN = ((CURRENT_CONFIG['KPA_MAX'] - CURRENT_CONFIG['KPA_MIN'])//15)*MARGIN
-RPM_MARGIN = ((CURRENT_CONFIG['RPM_MAX'] - CURRENT_CONFIG['RPM_MIN'])//15)*MARGIN
+KPA_MARGIN = ((CURRENT_CONFIG['KPA_MAX'] - CURRENT_CONFIG['KPA_MIN']) // KPA_BINS_AMOUNT) * MARGIN
+RPM_MARGIN = ((CURRENT_CONFIG['RPM_MAX'] - CURRENT_CONFIG['RPM_MIN']) // RPM_BINS_AMOUNT) * MARGIN
 
 print(f"KPA margin: {KPA_MARGIN}")
 print(f"RPM margin: {RPM_MARGIN}")
@@ -112,9 +117,9 @@ data['corr_coef'] = data.apply(lambda row: row['AFR']/row['afr_target_func'], ax
 data['ve_predicted'] = data.apply(lambda row: row['VE1']*row['corr_coef'], axis=1)
 
 
-AFR_achieved =  np.full((KPA_BINS.size, RPM_BINS.size), np.nan, dtype=np.double)
-RPMdot_achieved =  np.full((KPA_BINS.size, RPM_BINS.size), np.nan, dtype=np.double)
-Lambda_achieved =  np.full((KPA_BINS.size, RPM_BINS.size), np.nan, dtype=np.double)
+AFR_achieved = np.full((KPA_BINS.size, RPM_BINS.size), np.nan, dtype=np.double)
+RPMdot_achieved = np.full((KPA_BINS.size, RPM_BINS.size), np.nan, dtype=np.double)
+Lambda_achieved = np.full((KPA_BINS.size, RPM_BINS.size), np.nan, dtype=np.double)
 VE_predicted_weightened = np.zeros((KPA_BINS.size, RPM_BINS.size), dtype=int)
 
 
