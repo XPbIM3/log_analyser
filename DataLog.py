@@ -26,7 +26,7 @@ CONFIG_TURBO_M20 = {'KPA_MIN':28, 'KPA_MAX':160, 'RPM_MIN':400,'RPM_MAX':6000, '
 CONFIG_ATMO_VWKR = {'KPA_MIN':20, 'KPA_MAX':100, 'RPM_MIN':600,'RPM_MAX':6000, 'AFR_MIN':14.5, 'AFR_MAX':12.5}
 CONFIG_TURBO_SR20 = {'KPA_MIN':24, 'KPA_MAX':200, 'RPM_MIN':600,'RPM_MAX':7000, 'AFR_MIN':14.5, 'AFR_MAX':11.0}
 
-CURRENT_CONFIG = CONFIG_TURBO_M20
+CURRENT_CONFIG = CONFIG_ATMO_M104
 
 ############################################
 
@@ -48,11 +48,6 @@ else:
     RPM_BINS = ((np.round(np.linspace(CURRENT_CONFIG['RPM_MIN'],CURRENT_CONFIG['RPM_MAX'], RPM_BINS_AMOUNT)) // RPM_QUANT) * RPM_QUANT).astype(int)
 
 
-KPA_MARGIN = ((CURRENT_CONFIG['KPA_MAX'] - CURRENT_CONFIG['KPA_MIN']) // KPA_BINS_AMOUNT) * MARGIN
-RPM_MARGIN = ((CURRENT_CONFIG['RPM_MAX'] - CURRENT_CONFIG['RPM_MIN']) // RPM_BINS_AMOUNT) * MARGIN
-
-print(f"KPA margin: {KPA_MARGIN}")
-print(f"RPM margin: {RPM_MARGIN}")
 print("bins:")
 print(KPA_BINS)
 print(RPM_BINS)
@@ -103,12 +98,14 @@ data_raw = pd.concat(pd_frames)
 data_raw.AFR = data_raw.AFR.shift(SHIFT_AFR)
 data_raw.Lambda = data_raw.Lambda.shift(SHIFT_AFR)
 
-
+data_raw = data_raw.drop(0)
 
 print(f"Data Total: {len(data_raw)}")
-data = data_raw[(data_raw.Gwarm==100) & (data_raw.RPM>0)& (data_raw.DFCO==0)& (data_raw['rpm/s']>=-1000) & (data_raw['Accel Enrich']==100) & (data_raw.TPS>0.0)]
-#data = data_raw[(data_raw.RPM>0)& (data_raw.DFCO==0)]
-data = data.dropna()
+data = data_raw[(data_raw.Gwarm==100) & (data_raw.RPM>0) & (data_raw.DFCO==0)& (data_raw['rpm/s']>=-50) & (data_raw['Accel Enrich']==100)]
+# data = data_raw[(data_raw['rpm/s']>=-1000) & (data_raw.DFCO==0)]
+# data = data_raw[(data_raw['Accel Enrich']==100)]
+# data = data_raw
+
 print(f"Data Used: {len(data)}")
 
 
@@ -121,20 +118,48 @@ AFR_achieved = np.full((KPA_BINS.size, RPM_BINS.size), np.nan, dtype=np.double)
 RPMdot_achieved = np.full((KPA_BINS.size, RPM_BINS.size), np.nan, dtype=np.double)
 Lambda_achieved = np.full((KPA_BINS.size, RPM_BINS.size), np.nan, dtype=np.double)
 VE_predicted_weightened = np.zeros((KPA_BINS.size, RPM_BINS.size), dtype=int)
+data_points_amount_map = np.zeros((KPA_BINS.size, RPM_BINS.size), dtype=int)
+afr_std_dev = np.zeros((KPA_BINS.size, RPM_BINS.size), dtype=float)
 
 
 for i in range(KPA_BINS.size):
     for j in range(RPM_BINS.size):
-        kpa_min, kpa_max = np.max([KPA_BINS[i]-KPA_MARGIN, 0]),  np.min([KPA_BINS[i]+KPA_MARGIN, 900])
-        rpm_min, rpm_max = np.max([RPM_BINS[j]-RPM_MARGIN, 0]),  np.min([RPM_BINS[j]+RPM_MARGIN, 10000])
+        
+        if i > 1 and i < KPA_BINS.size - 1:
+            i_left = i-1
+            i_right = i+1
+            kpa_min, kpa_max = (KPA_BINS[i_left] + KPA_BINS[i])/2.0,  (KPA_BINS[i] + KPA_BINS[i_right])/2.0
+        elif i==0:
+            i_right = i+1
+            kpa_min, kpa_max = 0,  (KPA_BINS[i] + KPA_BINS[i_right])/2.0
+
+        elif i==KPA_BINS.size-1:
+            i_left = i-1
+            kpa_min, kpa_max = (KPA_BINS[i_left] + KPA_BINS[i])/2.0,  +np.inf
+
+        if j > 1 and j < RPM_BINS.size - 1:
+            j_left = j-1
+            j_right = j+1
+            rpm_min, rpm_max = (RPM_BINS[j_left] + RPM_BINS[j])/2.0,  (RPM_BINS[j] + RPM_BINS[j_right])/2.0
+        elif j==0:
+            j_right = j+1
+            rpm_min, rpm_max = 0,  (RPM_BINS[j] + RPM_BINS[j_right])/2.0
+
+        elif j==RPM_BINS.size-1:
+            j_left = j-1
+            rpm_min, rpm_max = (RPM_BINS[j_left] + RPM_BINS[j])/2.0,  +np.inf
+
+
         pd_local_frame = data[(data.MAP>=kpa_min) & (data.MAP<=kpa_max) & (data.RPM>=rpm_min) & (data.RPM<=rpm_max)]
         data_points_amount = len(pd_local_frame)
+        afr_std_dev[i][j] = pd_local_frame['AFR'].std()
         if data_points_amount>=HITS_NEEDED:
+            data_points_amount_map[i][j] = data_points_amount
             rpms_np = pd_local_frame['RPM'].to_numpy(dtype=np.double)
             kpas_np = pd_local_frame['MAP'].to_numpy(dtype=np.double)
             ves_np = pd_local_frame['ve_predicted'].to_numpy(dtype=np.double)
-            x_dist = np.abs(rpms_np - np.double(RPM_BINS[j])) / np.double(RPM_MARGIN)
-            y_dist = np.abs(kpas_np - np.double(KPA_BINS[i])) / np.double(KPA_MARGIN)
+            x_dist = np.abs(rpms_np - np.double(RPM_BINS[j])) / np.double(rpm_max-rpm_min)
+            y_dist = np.abs(kpas_np - np.double(KPA_BINS[i])) / np.double(kpa_max-kpa_min)
             weights = 1.0 - ((np.sqrt(x_dist**2 + y_dist**2)) / (np.sqrt(2.0)))
             weights_norm = weights / np.sum(weights)
             VE_predicted_weightened[i][j] = int(np.round(np.sum(ves_np * weights_norm)))
@@ -166,7 +191,12 @@ def saveFig(x_axis: list, y_axis: list, arr: np.ndarray, fname: str):
     plt.yticks(ticks=y_ticks, labels=y_labels, size=6)
     plt.savefig(fname)
 
+print('AFR STD:')
+print(np.flipud(afr_std_dev))
 
+
+print('Data points amount:')
+print(np.flipud(data_points_amount_map))
 
 print("VE predicted weighted:")
 print(np.flipud(weighted_ve))
