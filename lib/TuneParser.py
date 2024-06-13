@@ -1,12 +1,28 @@
 import os
 import sys
 import numpy as np
-import scipy
-from scipy import interpolate
+#import scipy
+from scipy.interpolate import RegularGridInterpolator
 
 
 
+class tableInterpolate:
+    def __init__(self, xaxis: np.ndarray, yaxis: np.ndarray, values:np.ndarray) -> None:
+        
+        self.xaxis = xaxis
+        self.yaxis = yaxis
+        self.values = values
+        self.obj = RegularGridInterpolator((self.xaxis, self.yaxis), self.values.T, bounds_error=False, fill_value=None)
 
+
+
+    def __call__(self, rpm, kpa):
+        if np.array(rpm).size == 1 and np.array(kpa).size == 1:
+            return self.obj((rpm, kpa))
+        else:
+            rpms, kpas = np.meshgrid(rpm, kpa)
+            return self.obj((rpms, kpas))
+        
 
 
 def blockToArray(block:list, shape:tuple = (16,16)):
@@ -49,8 +65,21 @@ def getTable(path:str, description_dict:dict):
     table = blockToArray(table,(16,16))
     xaxis = blockToAxis(xaxis)
     yaxis = blockToAxis(yaxis)
-    obj = scipy.interpolate.interp2d(xaxis, yaxis, table)
+    # obj = tableInterpolate(xaxis, yaxis, table)
+    # obj = scipy.interpolate.interp2d(xaxis, yaxis, table)
+    obj = tableInterpolate(xaxis, yaxis, table)
 
 
     return xaxis, yaxis, table, obj
 
+
+
+if __name__ == '__main__':
+    np.set_printoptions(floatmode = 'fixed',precision = 2, linewidth = 150, suppress = True)
+    x_axis = np.load('xaxis.npy')
+    y_axis = np.load('yaxis.npy')
+    table = np.load('table.npy')
+    obj = tableInterpolate(x_axis, y_axis, table)
+    ret = obj(x_axis, y_axis)
+    print(ret)
+    pass
