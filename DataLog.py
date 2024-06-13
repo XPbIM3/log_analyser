@@ -20,6 +20,7 @@ KPA_BINS_AMOUNT = 16
 RPM_BINS_AMOUNT = 16
 RPM_QUANT = 100
 KPA_QUANT = 2
+DAFAULT_INPUT_MSL = "./input/*.msl"
 
 
 CONFIG_ATMO_6 = {'KPA_MIN':24, 'KPA_MAX':100, 'RPM_MIN':400,'RPM_MAX':6000, 'AFR_MIN':14.5, 'AFR_MAX':12.5}
@@ -56,8 +57,8 @@ print(KPA_BINS)
 print(RPM_BINS)
 
 
-VE_TABLE = VE_TABLE_FUNC(RPM_BINS, KPA_BINS)
-IGN_TABLE = IGN_TABLE_FUNC(RPM_BINS, KPA_BINS)
+VE_TABLE = VE_TABLE_FUNC(RPM_BINS, KPA_BINS, True)
+IGN_TABLE = IGN_TABLE_FUNC(RPM_BINS, KPA_BINS, True)
 
 if GENERATE_AFR_TABLE:
     AFR_TABLE = np.array([np.linspace(CURRENT_CONFIG['AFR_MIN'], CURRENT_CONFIG['AFR_MAX'], 16)]*16).transpose()
@@ -90,68 +91,81 @@ def getBinFromValue(value:float, bins:np.ndarray):
 
 
 
-#@profile
-def main():
-
-
-
-    flist = glob.glob("./input/*.msl")
-
-
+def read_raw_data(flist):
     pd_frames = []
     for fname in flist:
         fr = pd.read_csv(fname, sep='\t', header=0, skiprows=[0,1,3])
         pd_frames.append(fr)
 
     data_raw = pd.concat(pd_frames)
-
-
     data_raw.AFR = data_raw.AFR.shift(SHIFT_AFR)
-    data_raw.Lambda = data_raw.Lambda.shift(SHIFT_AFR)
-
     data_raw = data_raw.drop(0)
 
+
+    return data_raw
+
+
+def filter_raw_data(data_raw):
     print(f"Data Total: {len(data_raw)}")
     #vdata = data_raw[(data_raw.Gwarm==100) & (data_raw.RPM>0) & (data_raw.DFCO==0)& (data_raw['rpm/s']>=0) & (data_raw['Accel Enrich']==100) & (data_raw['TPS'] > 0.0)]
     # data = data_raw[(data_raw['rpm/s']>=-1000) & (data_raw.DFCO==0)]
-    # data = data_raw[(data_raw['Accel Enrich']==100)]
-    data = data_raw
+    data = data_raw[(data_raw['Accel Enrich']==100) & data_raw['RPM']>0]
+    # data = data_raw
 
     print(f"Data Used: {len(data)}")
+    return data
+
+def filterValues(kpa_used_np, rpm_used_np, ve_prediction_np, afr_achieved_np, kpa_range, rpm_range):
+    rpm_min, rpm_max = rpm_range
+    kpa_min, kpa_max = kpa_range
+    kpa_indexes = (kpa_used_np >= kpa_min) & (kpa_used_np <= kpa_max)
+    rpm_indexes = (rpm_used_np >= rpm_min) & (rpm_used_np <= rpm_max)
+    final_indexes = kpa_indexes & rpm_indexes
+
+    return kpa_used_np[final_indexes], rpm_used_np[final_indexes], ve_prediction_np[final_indexes], afr_achieved_np[final_indexes]
+
+#@profile
+def main():
 
 
-    data['afr_target_func'] = data.apply(lambda row: AFR_TABLE_FUNC(row['RPM'], row['MAP']), axis=1)
-    data['corr_coef'] = data.apply(lambda row: row['AFR']/row['afr_target_func'], axis=1)
-    data['ve_predicted'] = data.apply(lambda row: row['VE1']*row['corr_coef'], axis=1)
+
+    flist = glob.glob(DAFAULT_INPUT_MSL)
+    data_raw = read_raw_data(flist)
+    data = filter_raw_data(data_raw)
+
+    afr_achieved_np = data['AFR'].to_numpy(dtype=float)
+    ve_used_np = data['VE1'].to_numpy(dtype=float)
+    kpa_used_np = data['MAP'].to_numpy(dtype=float)
+    rpm_used_np = data['RPM'].to_numpy(dtype=float)
+    afr_target_np = AFR_TABLE_FUNC(rpm_used_np, kpa_used_np)
+    corr_coef_np = afr_achieved_np / afr_target_np
+    ve_prediction_np = ve_used_np * corr_coef_np
+    pass
 
 
     AFR_achieved = np.full((KPA_BINS.size, RPM_BINS.size), np.nan, dtype=float)
-    RPMdot_achieved = np.full((KPA_BINS.size, RPM_BINS.size), np.nan, dtype=float)
-    Lambda_achieved = np.full((KPA_BINS.size, RPM_BINS.size), np.nan, dtype=float)
     VE_predicted_weightened = np.zeros((KPA_BINS.size, RPM_BINS.size), dtype=int)
     data_points_amount_map = np.zeros((KPA_BINS.size, RPM_BINS.size), dtype=int)
     ve_predict_std = np.zeros((KPA_BINS.size, RPM_BINS.size), dtype=float)
 
-    kpa_max_step = np.gradient(KPA_BINS).max()
-    rpm_max_step = np.gradient(RPM_BINS).max()
 
-    print(kpa_max_step, rpm_max_step)
 
     for i, kpa_center in enumerate(KPA_BINS):
         for j, rpm_center in enumerate(RPM_BINS):
+            kpa_max_step = np.gradient(KPA_BINS)[i]
+            rpm_max_step = np.gradient(RPM_BINS)[i]
+
             kpa_min = kpa_center-kpa_max_step
             kpa_max = kpa_center+kpa_max_step
             rpm_min = rpm_center - rpm_max_step
             rpm_max = rpm_center + rpm_max_step
 
-
-            pd_local_frame = data[(data.MAP>=kpa_min) & (data.MAP<=kpa_max) & (data.RPM>=rpm_min) & (data.RPM<=rpm_max)]
-            data_points_amount = len(pd_local_frame)
+            kpas_np,rpms_np, ves_np, afr_np = filterValues(kpa_used_np, rpm_used_np, ve_prediction_np, afr_achieved_np, (kpa_min, kpa_max), (rpm_min, rpm_max))
+            assert kpas_np.size == rpms_np.size
+            assert rpms_np.size == ves_np.size
+            data_points_amount = ves_np.size
             if data_points_amount>0:
                 data_points_amount_map[i][j] = data_points_amount
-                rpms_np = pd_local_frame['RPM'].to_numpy(dtype=float)
-                kpas_np = pd_local_frame['MAP'].to_numpy(dtype=float)
-                ves_np = pd_local_frame['ve_predicted'].to_numpy(dtype=float)
                 x_dist = np.abs(rpms_np - float(rpm_center)) / float((rpm_max-rpm_min)/2.0)
                 y_dist = np.abs(kpas_np - float(kpa_center)) / float((kpa_max-kpa_min)/2.0)
                 assert x_dist.max() <= 1.0
@@ -161,9 +175,8 @@ def main():
                 weights_norm = weights / np.sum(weights)
                 VE_predicted_weightened[i][j] = int(np.round(np.sum(ves_np * weights_norm)))
                 ve_predict_std[i][j] = ves_np.std()
-                AFR_achieved[i][j] = float(pd_local_frame.AFR.mean())
-                Lambda_achieved[i][j] = float(pd_local_frame['Lambda'].mean())
-                RPMdot_achieved[i][j] = pd_local_frame['rpm/s'].mean()
+                AFR_achieved[i][j] = np.median(afr_np)
+
 
 
     weighted_ve = VE_predicted_weightened.copy()
@@ -203,16 +216,7 @@ def main():
     print("median AFR achieved during RUN:")
     print(np.flipud(AFR_achieved))
 
-    print("median Lambda achieved during RUN:")
-    print(np.flipud(Lambda_achieved))
-
     print("VE increased +:")
-
-    ve_delta = np.flipud(np.round(weighted_ve-VE_TABLE))
-    # saveFig(RPM_BINS, KPA_BINS, ve_delta, 'delta.png')
-
-    # saveFig(RPM_BINS, KPA_BINS, RPMdot_achieved, 'rpms.png')
-
     print(np.flipud(np.round(weighted_ve-VE_TABLE)))
 
     print("VE increased %:")

@@ -16,12 +16,12 @@ class tableInterpolate:
 
 
 
-    def __call__(self, rpm, kpa):
-        if np.array(rpm).size == 1 and np.array(kpa).size == 1:
-            return self.obj((rpm, kpa))
-        else:
+    def __call__(self, rpm, kpa, table = False):
+        if table:
             rpms, kpas = np.meshgrid(rpm, kpa)
             return self.obj((rpms, kpas))
+        else:
+            return self.obj((rpm, kpa))
         
 
 
