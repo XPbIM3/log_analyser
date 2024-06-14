@@ -124,6 +124,7 @@ def filterValues(kpa_used_np, rpm_used_np, ve_prediction_np, afr_achieved_np, kp
 
     return kpa_used_np[final_indexes], rpm_used_np[final_indexes], ve_prediction_np[final_indexes], afr_achieved_np[final_indexes]
 
+
 #@profile
 def main():
 
@@ -145,6 +146,10 @@ def main():
 
     AFR_achieved = np.full((KPA_BINS.size, RPM_BINS.size), np.nan, dtype=float)
     VE_predicted_weightened = np.zeros((KPA_BINS.size, RPM_BINS.size), dtype=int)
+    VE_predicted_mean = np.zeros((KPA_BINS.size, RPM_BINS.size), dtype=int)
+    VE_predicted_median = np.zeros((KPA_BINS.size, RPM_BINS.size), dtype=int)
+    VE_predicted_upper = np.zeros((KPA_BINS.size, RPM_BINS.size), dtype=int)
+
     data_points_amount_map = np.zeros((KPA_BINS.size, RPM_BINS.size), dtype=int)
     ve_predict_std = np.zeros((KPA_BINS.size, RPM_BINS.size), dtype=float)
 
@@ -175,6 +180,11 @@ def main():
                 weights_norm = weights / np.sum(weights)
                 VE_predicted_weightened[i][j] = int(np.round(np.sum(ves_np * weights_norm)))
                 ve_predict_std[i][j] = ves_np.std()
+                VE_predicted_mean[i][j] = round(ves_np.mean())
+                VE_predicted_median[i][j] = round(np.median(ves_np))
+                VE_predicted_upper[i][j] = round(np.percentile(ves_np, 75))
+
+
                 AFR_achieved[i][j] = np.median(afr_np)
 
 
@@ -213,19 +223,31 @@ def main():
     print("VE predicted weighted:")
     print(np.flipud(weighted_ve))
 
+    print("VE predicted mean:")
+    print(np.flipud(VE_predicted_mean))
+
+    print("VE predicted median:")
+    print(np.flipud(VE_predicted_median))
+
+    print("VE predicted upper:")
+    print(np.flipud(VE_predicted_upper))
+
+
     print("median AFR achieved during RUN:")
     print(np.flipud(AFR_achieved))
 
     print("VE increased +:")
     print(np.flipud(np.round(weighted_ve-VE_TABLE)))
 
-    print("VE increased %:")
-    print(np.flipud(weighted_ve/VE_TABLE))
 
     export(RPM_BINS, KPA_BINS, AFR_TABLE, './output/AFR_EXPORT.table', dtype=float)
-    export(RPM_BINS, KPA_BINS, weighted_ve, './output/VE_EXPORT.table')
+    export(RPM_BINS, KPA_BINS, weighted_ve, './output/VE_EXPORT_w.table')
 
+    export(RPM_BINS, KPA_BINS, VE_predicted_mean, './output/VE_EXPORT_mean.table')
 
+    export(RPM_BINS, KPA_BINS, VE_predicted_median, './output/VE_EXPORT_median.table')
+
+    export(RPM_BINS, KPA_BINS, VE_predicted_upper, './output/VE_EXPORT_upper.table')
 
 
 if __name__ == '__main__':
