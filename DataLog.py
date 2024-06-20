@@ -4,8 +4,9 @@ import glob
 import pandas as pd
 from lib.TuneParser import *
 #USER settings section
+import matplotlib
 import matplotlib.pyplot as plt
-
+matplotlib.rcParams['figure.figsize'] = 15,7
 
 
 
@@ -109,7 +110,7 @@ def filter_raw_data(data_raw):
     print(f"Data Total: {len(data_raw)}")
     #vdata = data_raw[(data_raw.Gwarm==100) & (data_raw.RPM>0) & (data_raw.DFCO==0)& (data_raw['rpm/s']>=0) & (data_raw['Accel Enrich']==100) & (data_raw['TPS'] > 0.0)]
     # data = data_raw[(data_raw['rpm/s']>=-1000) & (data_raw.DFCO==0)]
-    data = data_raw[(data_raw['Accel Enrich']==100) & data_raw['RPM']>0]
+    data = data_raw[(data_raw['Accel Enrich']==100) & (data_raw['RPM']>0) & (data_raw['rpm/s']>=0)]
     # data = data_raw
 
     print(f"Data Used: {len(data)}")
@@ -125,12 +126,10 @@ def filterValues(kpa_used_np, rpm_used_np, ve_prediction_np, afr_achieved_np, kp
     return kpa_used_np[final_indexes], rpm_used_np[final_indexes], ve_prediction_np[final_indexes], afr_achieved_np[final_indexes]
 
 
-#@profile
-def main():
 
+def readMslAtLocation(location: str):
 
-
-    flist = glob.glob(DAFAULT_INPUT_MSL)
+    flist = glob.glob(location)
     data_raw = read_raw_data(flist)
     data = filter_raw_data(data_raw)
 
@@ -141,7 +140,20 @@ def main():
     afr_target_np = AFR_TABLE_FUNC(rpm_used_np, kpa_used_np)
     corr_coef_np = afr_achieved_np / afr_target_np
     ve_prediction_np = ve_used_np * corr_coef_np
-    pass
+    return kpa_used_np, rpm_used_np, ve_prediction_np, afr_achieved_np
+
+
+
+#@profile
+def main():
+
+    kpa_used_np, rpm_used_np, ve_prediction_np, afr_achieved_np = readMslAtLocation(DAFAULT_INPUT_MSL)
+
+    kpas_np, rpms_np, ves_np, afr_np = filterValues(kpa_used_np, rpm_used_np, ve_prediction_np, afr_achieved_np, (80, 100), (0, 10000))
+
+    plt.scatter(rpms_np, ves_np, s=3, marker='.')
+    plt.savefig(f'swipe.png')
+    plt.clf()
 
 
     AFR_achieved = np.full((KPA_BINS.size, RPM_BINS.size), np.nan, dtype=float)
