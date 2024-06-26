@@ -13,7 +13,7 @@ matplotlib.rcParams['figure.figsize'] = 15,7
 
 
 SHIFT_AFR = 1
-HITS_NEEDED = 10
+HITS_NEEDED = 50
 MARGIN=1.0
 GENERATE_AFR_TABLE = True
 GENERATE_AXES = False
@@ -110,7 +110,7 @@ def filter_raw_data(data_raw):
     print(f"Data Total: {len(data_raw)}")
     #vdata = data_raw[(data_raw.Gwarm==100) & (data_raw.RPM>0) & (data_raw.DFCO==0)& (data_raw['rpm/s']>=0) & (data_raw['Accel Enrich']==100) & (data_raw['TPS'] > 0.0)]
     # data = data_raw[(data_raw['rpm/s']>=-1000) & (data_raw.DFCO==0)]
-    data = data_raw[(data_raw['Accel Enrich']==100) & (data_raw['RPM']>0) & (data_raw['rpm/s']>=0)]
+    data = data_raw[(data_raw['Accel Enrich']==100) & (data_raw['RPM']>0) & (data_raw['rpm/s']>=0) & (data_raw['Gwarm']<=100)]
     # data = data_raw
 
     print(f"Data Used: {len(data)}")
@@ -166,7 +166,7 @@ def main():
     ve_predict_std = np.zeros((KPA_BINS.size, RPM_BINS.size), dtype=float)
 
 
-
+    data_points_amount_list = []
     for i, kpa_center in enumerate(KPA_BINS):
         for j, rpm_center in enumerate(RPM_BINS):
             kpa_max_step = np.gradient(KPA_BINS)[i]
@@ -181,7 +181,17 @@ def main():
             assert kpas_np.size == rpms_np.size
             assert rpms_np.size == ves_np.size
             data_points_amount = ves_np.size
+            
             if data_points_amount>0:
+                data_points_amount_list.append(data_points_amount)
+
+
+                '''
+                plt.scatter(rpms_np, ves_np, s=3, marker='.')
+                plt.savefig(f'./dbg/dbg_kpa_{kpa_center}_rpm_{rpm_center}.png')
+                plt.clf()
+                '''
+
                 data_points_amount_map[i][j] = data_points_amount
                 x_dist = np.abs(rpms_np - float(rpm_center)) / float((rpm_max-rpm_min)/2.0)
                 y_dist = np.abs(kpas_np - float(kpa_center)) / float((kpa_max-kpa_min)/2.0)
@@ -202,7 +212,11 @@ def main():
 
 
     weighted_ve = VE_predicted_weightened.copy()
-    # weighted_ve[weighted_ve==0] = VE_TABLE[weighted_ve==0]
+    weighted_ve[weighted_ve==0] = VE_TABLE[weighted_ve==0]
+    VE_predicted_median[VE_predicted_median==0] = VE_TABLE[VE_predicted_median==0]
+    VE_predicted_mean[VE_predicted_mean==0] = VE_TABLE[VE_predicted_mean==0]
+    
+    
 
     '''
     def saveFig(x_axis: list, y_axis: list, arr: np.ndarray, fname: str):
@@ -247,10 +261,6 @@ def main():
 
     print("median AFR achieved during RUN:")
     print(np.flipud(AFR_achieved))
-
-    print("VE increased +:")
-    print(np.flipud(np.round(weighted_ve-VE_TABLE)))
-
 
     export(RPM_BINS, KPA_BINS, AFR_TABLE, './output/AFR_EXPORT.table', dtype=float)
     export(RPM_BINS, KPA_BINS, weighted_ve, './output/VE_EXPORT_w.table')

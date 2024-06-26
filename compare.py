@@ -26,6 +26,7 @@ if __name__ == '__main__':
     kpas_np, rpms_np, ves_np, afr_np = filterValues(kpa_used_np, rpm_used_np, ve_prediction_np, afr_achieved_np, (80, 100), (0, 10000))
 
     plt.scatter(rpms_np, ves_np, s=3, marker='.')
+    plt.show()
 
     plt.savefig(f'swipe.png')
 
