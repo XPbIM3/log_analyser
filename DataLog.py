@@ -1,37 +1,36 @@
 import numpy as np
-np.set_printoptions(floatmode = 'fixed',precision = 2, linewidth = 150, suppress = True)
 import glob
 import pandas as pd
-from lib.TuneParser import *
-#USER settings section
+from lib.TuneParser import getTable, tableInterpolate
 import matplotlib
 import matplotlib.pyplot as plt
-matplotlib.rcParams['figure.figsize'] = 15,7
 
-
-
-
+np.set_printoptions(floatmode='fixed', precision=2, linewidth=150, suppress=True)
+matplotlib.rcParams['figure.figsize'] = 15, 7
 
 SHIFT_AFR = 1
-HITS_NEEDED = 50
-MARGIN=1.0
+HITS_NEEDED = 10
+ACCELERATION_AFFECTED = 10
+# MARGIN = 1.0
 GENERATE_AFR_TABLE = True
-GENERATE_AXES = False
+GENERATE_AXES = True
 KPA_BINS_AMOUNT = 16
 RPM_BINS_AMOUNT = 16
 RPM_QUANT = 100
 KPA_QUANT = 2
 DAFAULT_INPUT_MSL = "./input/*.msl"
+KPA_OVERLAP = 1.5
+RPM_OVERLAP = 1.5
 
 
-CONFIG_ATMO_6 = {'KPA_MIN':24, 'KPA_MAX':100, 'RPM_MIN':400,'RPM_MAX':6000, 'AFR_MIN':14.5, 'AFR_MAX':12.5}
-CONFIG_ATMO_M104 = {'KPA_MIN':24, 'KPA_MAX':100, 'RPM_MIN':400,'RPM_MAX':7000, 'AFR_MIN':15.0, 'AFR_MAX':12.}
-CONFIG_ATMO_M20 = {'KPA_MIN':28, 'KPA_MAX':100, 'RPM_MIN':400,'RPM_MAX':6000, 'AFR_MIN':14.5, 'AFR_MAX':12.5}
-CONFIG_TURBO_M20 = {'KPA_MIN':28, 'KPA_MAX':160, 'RPM_MIN':400,'RPM_MAX':6000, 'AFR_MIN':14.5, 'AFR_MAX':12.0}
-CONFIG_ATMO_VWKR = {'KPA_MIN':20, 'KPA_MAX':100, 'RPM_MIN':600,'RPM_MAX':6000, 'AFR_MIN':14.5, 'AFR_MAX':12.5}
-CONFIG_TURBO_SR20 = {'KPA_MIN':24, 'KPA_MAX':200, 'RPM_MIN':600,'RPM_MAX':7000, 'AFR_MIN':14.5, 'AFR_MAX':11.0}
+CONFIG_ATMO_6 = {'KPA_MIN': 24, 'KPA_MAX': 100, 'RPM_MIN': 400, 'RPM_MAX': 6000, 'AFR_MIN': 14.5, 'AFR_MAX': 12.5}
+CONFIG_ATMO_M104 = {'KPA_MIN': 24, 'KPA_MAX': 100, 'RPM_MIN': 400, 'RPM_MAX': 7000, 'AFR_MIN': 15.0, 'AFR_MAX': 12.}
+CONFIG_ATMO_M20 = {'KPA_MIN': 28, 'KPA_MAX': 100, 'RPM_MIN': 400, 'RPM_MAX': 6000, 'AFR_MIN': 14.5, 'AFR_MAX': 12.5}
+CONFIG_TURBO_M20 = {'KPA_MIN': 28, 'KPA_MAX': 160, 'RPM_MIN': 400, 'RPM_MAX': 6000, 'AFR_MIN': 14.5, 'AFR_MAX': 12.0}
+CONFIG_ATMO_VWKR = {'KPA_MIN': 20, 'KPA_MAX': 100, 'RPM_MIN': 600, 'RPM_MAX': 6000, 'AFR_MIN': 14.5, 'AFR_MAX': 12.5}
+CONFIG_TURBO_SR20 = {'KPA_MIN': 24, 'KPA_MAX': 200, 'RPM_MIN': 600, 'RPM_MAX': 7000, 'AFR_MIN': 14.5, 'AFR_MAX': 11.0}
 
-CURRENT_CONFIG = CONFIG_ATMO_M104
+CURRENT_CONFIG = CONFIG_TURBO_M20
 
 ############################################
 
@@ -40,17 +39,17 @@ VE_TABLE_DICT = {'table': 'veTable', 'xaxis': 'rpmBins', 'yaxis': 'fuelLoadBins'
 AFR_TABLE_DICT = {'table': 'afrTable', 'xaxis': 'rpmBinsAFR', 'yaxis': 'loadBinsAFR'}
 IGN_TABLE_DICT = {'table': 'advTable1', 'xaxis': 'rpmBins2', 'yaxis': 'mapBins1'}
 F_NAME = './input/CurrentTune.msq'
-RPM_BINS_VE, KPA_BINS_VE, VE_TABLE_PARSED, VE_TABLE_FUNC = getTable(F_NAME,VE_TABLE_DICT)
-RPM_BINS_AFR, KPA_BINS_AFR, AFR_TABLE_PARSED, AFR_TABLE_FUNC = getTable(F_NAME,AFR_TABLE_DICT)
-RPM_BINS_IGN, KPA_BINS_IGN, IGN_TABLE_PARSED, IGN_TABLE_FUNC = getTable(F_NAME,IGN_TABLE_DICT)
+RPM_BINS_VE, KPA_BINS_VE, VE_TABLE_PARSED, VE_TABLE_FUNC = getTable(F_NAME, VE_TABLE_DICT)
+RPM_BINS_AFR, KPA_BINS_AFR, AFR_TABLE_PARSED, AFR_TABLE_FUNC = getTable(F_NAME, AFR_TABLE_DICT)
+RPM_BINS_IGN, KPA_BINS_IGN, IGN_TABLE_PARSED, IGN_TABLE_FUNC = getTable(F_NAME, IGN_TABLE_DICT)
 
 
-if GENERATE_AXES == False:
+if GENERATE_AXES is False:
     KPA_BINS = KPA_BINS_VE
     RPM_BINS = RPM_BINS_VE
 else:
-    KPA_BINS = ((np.round(np.linspace(CURRENT_CONFIG['KPA_MIN'],CURRENT_CONFIG['KPA_MAX'], KPA_BINS_AMOUNT)) // KPA_QUANT) * KPA_QUANT).astype(int)
-    RPM_BINS = ((np.round(np.linspace(CURRENT_CONFIG['RPM_MIN'],CURRENT_CONFIG['RPM_MAX'], RPM_BINS_AMOUNT)) // RPM_QUANT) * RPM_QUANT).astype(int)
+    KPA_BINS = ((np.round(np.linspace(CURRENT_CONFIG['KPA_MIN'], CURRENT_CONFIG['KPA_MAX'], KPA_BINS_AMOUNT)) // KPA_QUANT) * KPA_QUANT).astype(int)
+    RPM_BINS = ((np.round(np.linspace(CURRENT_CONFIG['RPM_MIN'], CURRENT_CONFIG['RPM_MAX'], RPM_BINS_AMOUNT)) // RPM_QUANT) * RPM_QUANT).astype(int)
 
 
 print("bins:")
@@ -74,8 +73,7 @@ def export(RPMS, KPAS, ZS, fname, dtype=int):
 
     xax = "\n"+("\n".join(list(map(str, RPMS.astype(int)))))+"\n"
     yax = "\n"+("\n".join(list(map(str, KPAS.astype(int)))))+"\n"
-    zax = "\n"+str(ZS.astype(dtype)).strip('[ ]').replace('[','').replace(']', '')+"\n"
-
+    zax = "\n"+str(ZS.astype(dtype)).strip('[ ]').replace('[', '').replace(']', '')+"\n"
 
     templ = templ.replace('_XAXIS_', xax)
     templ = templ.replace('_YAXIS_', yax)
@@ -84,47 +82,53 @@ def export(RPMS, KPAS, ZS, fname, dtype=int):
     with open(fname, 'w') as t:
         t.write(templ)
 
+
 '''
 def getBinFromValue(value:float, bins:np.ndarray):
     return np.argmin(np.abs(value-bins))
 '''
 
 
-
-
 def read_raw_data(flist):
     pd_frames = []
     for fname in flist:
-        fr = pd.read_csv(fname, sep='\t', header=0, skiprows=[0,1,3])
+        fr = pd.read_csv(fname, sep='\t', header=0, skiprows=[0, 1, 3])
         pd_frames.append(fr)
 
     data_raw = pd.concat(pd_frames)
     data_raw.AFR = data_raw.AFR.shift(SHIFT_AFR)
     data_raw = data_raw.drop(0)
 
-
     return data_raw
 
 
 def filter_raw_data(data_raw):
     print(f"Data Total: {len(data_raw)}")
-    #vdata = data_raw[(data_raw.Gwarm==100) & (data_raw.RPM>0) & (data_raw.DFCO==0)& (data_raw['rpm/s']>=0) & (data_raw['Accel Enrich']==100) & (data_raw['TPS'] > 0.0)]
+    # vdata = data_raw[(data_raw.Gwarm==100) & (data_raw.RPM>0) & (data_raw.DFCO==0)& (data_raw['rpm/s']>=0) & (data_raw['Accel Enrich']==100) & (data_raw['TPS'] > 0.0)]
     # data = data_raw[(data_raw['rpm/s']>=-1000) & (data_raw.DFCO==0)]
-    data = data_raw[(data_raw['Accel Enrich']==100) & (data_raw['RPM']>0) & (data_raw['rpm/s']>=0) & (data_raw['Gwarm']<=100)]
+
+    data_raw_accel_affected = data_raw['Accel Enrich'] != 100
+    affected_column = data_raw_accel_affected.to_numpy()
+    affected_indexes = np.where(affected_column==True)
+    for aff_ind in affected_indexes[0]:
+        affected_column[aff_ind:aff_ind+ACCELERATION_AFFECTED] = True
+
+    data_raw['accel_affected'] = affected_column
+
+    data = data_raw[(data_raw['accel_affected'] == False) & (data_raw['RPM'] > 0) & (data_raw['rpm/s'] >= 0) & (data_raw['Gwarm'] <= 100) & (data_raw['CLT'] > 80) & (data_raw['TPS'] > 0.0)]
     # data = data_raw
-
     print(f"Data Used: {len(data)}")
-    return data
+    return data.copy()
 
-def filterValues(kpa_used_np, rpm_used_np, ve_prediction_np, afr_achieved_np, kpa_range, rpm_range):
+
+def filterValues(corr_coef, kpa_used_np, rpm_used_np, ve_prediction_np, afr_achieved_np, kpa_range, rpm_range):
     rpm_min, rpm_max = rpm_range
     kpa_min, kpa_max = kpa_range
     kpa_indexes = (kpa_used_np >= kpa_min) & (kpa_used_np <= kpa_max)
     rpm_indexes = (rpm_used_np >= rpm_min) & (rpm_used_np <= rpm_max)
     final_indexes = kpa_indexes & rpm_indexes
-
-    return kpa_used_np[final_indexes], rpm_used_np[final_indexes], ve_prediction_np[final_indexes], afr_achieved_np[final_indexes]
-
+    assert corr_coef.shape == kpa_used_np.shape
+    return corr_coef[final_indexes], kpa_used_np[final_indexes], rpm_used_np[final_indexes], ve_prediction_np[final_indexes], afr_achieved_np[final_indexes]
 
 
 def readMslAtLocation(location: str):
@@ -140,23 +144,19 @@ def readMslAtLocation(location: str):
     afr_target_np = AFR_TABLE_FUNC(rpm_used_np, kpa_used_np)
     corr_coef_np = afr_achieved_np / afr_target_np
     ve_prediction_np = ve_used_np * corr_coef_np
-    return kpa_used_np, rpm_used_np, ve_prediction_np, afr_achieved_np
+    data['corr_coef'] = corr_coef_np.tolist()
+    return kpa_used_np, rpm_used_np, ve_prediction_np, afr_achieved_np, corr_coef_np
 
 
-
-#@profile
 def main():
-
-    kpa_used_np, rpm_used_np, ve_prediction_np, afr_achieved_np = readMslAtLocation(DAFAULT_INPUT_MSL)
-
-    kpas_np, rpms_np, ves_np, afr_np = filterValues(kpa_used_np, rpm_used_np, ve_prediction_np, afr_achieved_np, (80, 100), (0, 10000))
-
+    kpa_used_np, rpm_used_np, ve_prediction_np, afr_achieved_np, coef_corr_np = readMslAtLocation(DAFAULT_INPUT_MSL)
+    corr_coef_, kpas_np, rpms_np, ves_np, afr_np = filterValues(coef_corr_np, kpa_used_np, rpm_used_np, ve_prediction_np, afr_achieved_np, (90, 160), (0, 10000))
     plt.scatter(rpms_np, ves_np, s=3, marker='.')
-    plt.savefig(f'swipe.png')
+    plt.savefig('swipe.png')
     plt.clf()
 
-
     AFR_achieved = np.full((KPA_BINS.size, RPM_BINS.size), np.nan, dtype=float)
+    AFR_mismatch = np.full((KPA_BINS.size, RPM_BINS.size), np.nan, dtype=float)
     VE_predicted_weightened = np.zeros((KPA_BINS.size, RPM_BINS.size), dtype=int)
     VE_predicted_mean = np.zeros((KPA_BINS.size, RPM_BINS.size), dtype=int)
     VE_predicted_median = np.zeros((KPA_BINS.size, RPM_BINS.size), dtype=int)
@@ -165,33 +165,31 @@ def main():
     data_points_amount_map = np.zeros((KPA_BINS.size, RPM_BINS.size), dtype=int)
     ve_predict_std = np.zeros((KPA_BINS.size, RPM_BINS.size), dtype=float)
 
-
     data_points_amount_list = []
     for i, kpa_center in enumerate(KPA_BINS):
         for j, rpm_center in enumerate(RPM_BINS):
             kpa_max_step = np.gradient(KPA_BINS)[i]
             rpm_max_step = np.gradient(RPM_BINS)[i]
 
-            kpa_min = kpa_center-kpa_max_step
-            kpa_max = kpa_center+kpa_max_step
-            rpm_min = rpm_center - rpm_max_step
-            rpm_max = rpm_center + rpm_max_step
-
-            kpas_np,rpms_np, ves_np, afr_np = filterValues(kpa_used_np, rpm_used_np, ve_prediction_np, afr_achieved_np, (kpa_min, kpa_max), (rpm_min, rpm_max))
+            kpa_min = kpa_center - kpa_max_step * KPA_OVERLAP
+            kpa_max = kpa_center + kpa_max_step * KPA_OVERLAP
+            rpm_min = rpm_center - rpm_max_step * RPM_OVERLAP
+            rpm_max = rpm_center + rpm_max_step * RPM_OVERLAP
+            
+            corr_coef_local, kpas_np, rpms_np, ves_np, afr_np = filterValues(coef_corr_np, kpa_used_np, rpm_used_np, ve_prediction_np, afr_achieved_np, (kpa_min, kpa_max), (rpm_min, rpm_max))
             assert kpas_np.size == rpms_np.size
             assert rpms_np.size == ves_np.size
             data_points_amount = ves_np.size
-            
-            if data_points_amount>0:
-                data_points_amount_list.append(data_points_amount)
 
+            if data_points_amount > HITS_NEEDED:
+                data_points_amount_list.append(data_points_amount)
 
                 '''
                 plt.scatter(rpms_np, ves_np, s=3, marker='.')
                 plt.savefig(f'./dbg/dbg_kpa_{kpa_center}_rpm_{rpm_center}.png')
                 plt.clf()
                 '''
-
+                AFR_mismatch[i][j] = corr_coef_local.mean()
                 data_points_amount_map[i][j] = data_points_amount
                 x_dist = np.abs(rpms_np - float(rpm_center)) / float((rpm_max-rpm_min)/2.0)
                 y_dist = np.abs(kpas_np - float(kpa_center)) / float((kpa_max-kpa_min)/2.0)
@@ -206,17 +204,12 @@ def main():
                 VE_predicted_median[i][j] = round(np.median(ves_np))
                 VE_predicted_upper[i][j] = round(np.percentile(ves_np, 75))
 
-
                 AFR_achieved[i][j] = np.median(afr_np)
 
-
-
     weighted_ve = VE_predicted_weightened.copy()
-    weighted_ve[weighted_ve==0] = VE_TABLE[weighted_ve==0]
-    VE_predicted_median[VE_predicted_median==0] = VE_TABLE[VE_predicted_median==0]
-    VE_predicted_mean[VE_predicted_mean==0] = VE_TABLE[VE_predicted_mean==0]
-    
-    
+    weighted_ve[weighted_ve == 0] = VE_TABLE[weighted_ve == 0]
+    VE_predicted_median[VE_predicted_median == 0] = VE_TABLE[VE_predicted_median == 0]
+    VE_predicted_mean[VE_predicted_mean == 0] = VE_TABLE[VE_predicted_mean == 0]
 
     '''
     def saveFig(x_axis: list, y_axis: list, arr: np.ndarray, fname: str):
@@ -238,10 +231,9 @@ def main():
         plt.yticks(ticks=y_ticks, labels=y_labels, size=6)
         plt.savefig(fname)
     '''
-        
+
     print('VE predict std:')
     print(np.flipud(ve_predict_std))
-
 
     print('Data points amount:')
     print(np.flipud(data_points_amount_map))
@@ -258,17 +250,16 @@ def main():
     print("VE predicted upper:")
     print(np.flipud(VE_predicted_upper))
 
-
     print("median AFR achieved during RUN:")
     print(np.flipud(AFR_achieved))
 
+    print('mean AFR mismatch:')
+    print(np.flipud(AFR_mismatch))
+
     export(RPM_BINS, KPA_BINS, AFR_TABLE, './output/AFR_EXPORT.table', dtype=float)
     export(RPM_BINS, KPA_BINS, weighted_ve, './output/VE_EXPORT_w.table')
-
     export(RPM_BINS, KPA_BINS, VE_predicted_mean, './output/VE_EXPORT_mean.table')
-
     export(RPM_BINS, KPA_BINS, VE_predicted_median, './output/VE_EXPORT_median.table')
-
     export(RPM_BINS, KPA_BINS, VE_predicted_upper, './output/VE_EXPORT_upper.table')
 
 
