@@ -97,7 +97,7 @@ def read_raw_data(flist):
 
     data_raw = pd.concat(pd_frames)
     data_raw.AFR = data_raw.AFR.shift(-SHIFT_AFR)
-    data_raw = data_raw.drop(0)
+    data_raw = data_raw.drop(-1)
 
     return data_raw
 
