@@ -270,3 +270,42 @@ def test_capture_date_author_suffix(tmp_path):
     p = write_msl(tmp_path / "d.msl", rows(3),
                   date="Tue Aug 11 15:17:18 YEKT 2026, File author: TunerStudio MS Lite! version 3.3.01")
     assert Log.load(p).capture_date == "Tue Aug 11 15:17:18 YEKT 2026"
+
+
+# ------------------------------------------------------------------ Sync Loss #
+
+def _write_sync(path, n, counter, **kw):
+    """rows() with an extra trailing 'Sync Loss #' column (cumulative counter)."""
+    cols = ("Time", "RPM", "MAP", "AFR", "Lambda", "AFR Target", "VE1", "Fan", "Sync Loss #")
+    units = ("s", "rpm", "kpa", "O2", "", "O2", "%", "", "")
+    return write_msl(path, [r + (c,) for r, c in zip(rows(n), counter)], columns=cols, units=units, **kw)
+
+
+def test_sync_loss_increments(tmp_path):
+    # counter 0 0 1 1 2 0: +1 twice, then an ECU reset (drop -> 0)
+    log = Log.load(_write_sync(tmp_path / "s.msl", 6, [0, 0, 1, 1, 2, 0]))
+    assert log.column("SyncLoss+").tolist() == [0, 0, 1, 0, 1]   # last row dropped by the shift
+    assert log.column("SyncLoss+").dtype.kind == "i"
+
+
+def test_sync_loss_on_dropped_row_survives(tmp_path):
+    # segments: rows 0-2 | 3-4 | 5; the counter goes up on row 2, which the shift drops;
+    # the jump must still show up on the next kept row (3)
+    p = _with_marks(_write_sync(tmp_path / "m.msl", 6, [0, 1, 2, 2, 3, 3]),
+                    {2: ["Going Offline"], 4: ["Manual"]})
+    log = Log.load(p)
+    assert log.column("SyncLoss+").tolist() == [0, 1, 1]
+
+
+def test_sync_loss_not_across_files(tmp_path):
+    a = Log.load(_write_sync(tmp_path / "a.msl", 4, [0, 1, 2, 3]))
+    b = Log.load(_write_sync(tmp_path / "b.msl", 2, [5, 5]))     # continues the count
+    joined = Log.concat([a, b])
+    # b starts at 5 while a's last kept row has 2: a post-concat diff would add a fake +3
+    assert joined.column("SyncLoss+").tolist() == [0, 1, 1, 0]
+    assert int(joined.column("SyncLoss+").sum()) == 2
+
+
+def test_sync_loss_column_absent(tmp_path):
+    log = Log.load(write_msl(tmp_path / "p.msl", rows(4)))
+    assert "SyncLoss+" not in log.columns

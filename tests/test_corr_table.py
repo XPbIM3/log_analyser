@@ -42,6 +42,17 @@ def test_missing_columns_skipped():
     assert any("CLT" in r and "пропущено" in r for r in rep)
 
 
+def test_sum_stat_and_clamp():
+    # 2 losses at (800, 40) and one below every axis end (100, 40) -> folded into (1000, 30)
+    log = Log(pd.DataFrame({"RPM": [800, 800, 100], "MAP": [40, 40, 40],
+                            "SyncLoss+": [1, 1, 1]}))
+    g = corr_grid(log, X, Y, column="SyncLoss+", stat="sum", min_points=1, clamp=True)
+    assert g.counts[0, 0] == 3 and g.values[0, 0] == 3
+    assert np.isnan(g.values[1, 1])       # no points there at all
+    without_clamp = corr_grid(log, X, Y, column="SyncLoss+", stat="sum", min_points=1)
+    assert without_clamp.values[0, 0] == 2 and without_clamp.counts[0, 0] == 2
+
+
 def test_corr_grid_cells_and_min_points():
     # 12 points at node (2000, 60) with CORR 1.1, 3 points at (1000, 30) with CORR 0.9
     rpm = [2000] * 12 + [1050] * 3

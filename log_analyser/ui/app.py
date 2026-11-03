@@ -8,6 +8,7 @@ from .afr_target_app import AfrTargetApp
 from .corr_tab import CorrTab
 from .logs_tab import LogsTab
 from .session import Session
+from .sync_tab import SyncTab
 from .widgets import init_styles
 
 
@@ -21,14 +22,19 @@ class MainWindow(ttk.Frame):
         self.logs = LogsTab(self.notebook, self.session)
         self.afr = AfrTargetApp(self.notebook)
         self.corr = CorrTab(self.notebook, self.session, generated_target=lambda: self.afr.table)
+        self.sync = SyncTab(self.notebook, self.session, generated_target=lambda: self.afr.table)
         self.notebook.add(self.logs, text="Данные")
         self.notebook.add(self.afr, text="AFR Target")
         self.notebook.add(self.corr, text="Коррекция")
+        self.notebook.add(self.sync, text="Sync Loss")
         self.notebook.bind("<<NotebookTabChanged>>", self._tab_changed)
 
     def _tab_changed(self, _event=None) -> None:
-        if self.notebook.select() == str(self.corr):
+        sel = self.notebook.select()
+        if sel == str(self.corr):
             self.corr.schedule()   # the generated target may have changed meanwhile
+        elif sel == str(self.sync):
+            self.sync.schedule()
 
 
 def main() -> None:

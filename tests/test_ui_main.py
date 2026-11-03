@@ -37,6 +37,27 @@ def wait_loaded(w, timeout=30):
     assert not w.logs._pending
 
 
+def test_sync_loss_map(win):
+    msl = sorted(str(p) for p in FIXTURES.glob("*.msl"))
+    if not msl:
+        pytest.skip("no sample logs")
+    win.logs.load_tune(str(FIXTURES / "CurrentTune.msq"))
+    win.logs.load_logs(msl)
+    wait_loaded(win)
+    win.sync.refresh()
+    g = win.sync.grid_result
+    assert g is not None
+    assert int(np.nansum(g.values)) == 1       # the fixture log has exactly one sync loss
+    i, j = (int(v) for v in np.argwhere(g.values > 0)[0])
+    win.sync._cell_clicked(i, j)
+    assert f"потерь 1" in win.sync.cell_info.cget("text")
+    assert f"точек {g.counts[i, j]}" in win.sync.cell_info.cget("text")
+    # same on the generated AFR target axes
+    win.sync.axes_src.set("target")
+    win.sync.refresh()
+    assert int(np.nansum(win.sync.grid_result.values)) == 1
+
+
 def test_no_logs_message(win):
     win.corr.refresh()
     assert win.corr.grid_result is None

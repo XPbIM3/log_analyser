@@ -19,6 +19,9 @@ DEFAULT_SHIFT_COLUMNS = ("AFR", "Lambda")
 SOURCE_COLUMN = "source"
 MARK_PREFIX = "MARK "
 
+SYNC_LOSS_SOURCE = "Sync Loss #"     # cumulative counter written by the firmware
+SYNC_LOSS_COLUMN = "SyncLoss+"       # per-row increments of that counter
+
 # target column -> measured column
 _MEASURED_FOR_TARGET_COLUMN = {"AFR Target": "AFR", "Lambda Target": "Lambda"}
 _MEASURED_FOR_KIND = {TableKind.AFR: "AFR", TableKind.LAMBDA: "Lambda"}
@@ -65,6 +68,10 @@ class Log:
         row ``i`` gets the mixture measured in row ``i + shift`` — the engine's
         response to the parameters (VE, PW, ...) of row ``i``. Rows left without a
         value after the shift are dropped. ``shift=0`` disables it.
+
+        When the log has the cumulative ``Sync Loss #`` counter, a derived per-row
+        column ``SyncLoss+`` is added: by how much the counter went up on this row
+        (0 for most rows; a counter drop is an ECU reset and yields 0).
 
         ``MARK ...`` lines that TunerStudio writes into the data (going offline/online,
         ECU reset, manual marks) are skipped and kept in :attr:`marks`. They split the
@@ -157,6 +164,13 @@ class Log:
                 df[cols] = grouped.shift(-shift)
                 df = df.dropna(subset=cols)
         df = df.reset_index(drop=True)
+        if SYNC_LOSS_SOURCE in df.columns:
+            # The counter is cumulative and never decreases on its own; a drop means an
+            # ECU reset. The diff is taken after the shift-drop, so a loss on the last
+            # row of a segment still shows up (attributed to the next kept row) and
+            # files never leak their counter into each other through concat.
+            counter = pd.to_numeric(df[SYNC_LOSS_SOURCE], errors="coerce")
+            df[SYNC_LOSS_COLUMN] = counter.diff().fillna(0).clip(lower=0).astype(np.int64)
         df[SOURCE_COLUMN] = os.path.basename(path)
 
         return cls(df, sources=(path,), signature=signature, firmware=firmware,

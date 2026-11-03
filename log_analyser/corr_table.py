@@ -10,12 +10,14 @@ from .cell import _bounds
 from .datalog import Log, LogError
 from .table import Table, TableKind
 
-STATS = ("median", "mean", "q25", "q75")
+CORR_STATS = ("median", "mean", "q25", "q75")
+STATS = CORR_STATS + ("sum",)     # sum: count occurrences (e.g. sync losses) per cell
 _STAT_FUNCS = {
     "median": np.median,
     "mean": np.mean,
     "q25": lambda a: np.percentile(a, 25),   # lower estimate of the cell
     "q75": lambda a: np.percentile(a, 75),   # upper estimate of the cell
+    "sum": np.sum,
 }
 # VE actually applied by the ECU in each row; names differ between TunerStudio/firmware versions
 VE_COLUMNS = ("Current VE", "VE (Current", "VE1")
@@ -145,12 +147,15 @@ class CorrGrid:
 
 def corr_grid(log: Log, x_axis: Axis, y_axis: Axis, *, column: str = "CORR",
               stat: str = "median", min_points: int = 10, overlap: float = 0.5,
-              x: str = "RPM", y: str = "MAP") -> CorrGrid:
+              x: str = "RPM", y: str = "MAP", clamp: bool = False) -> CorrGrid:
     """Aggregate ``column`` of ``log`` per cell of the ``x_axis`` × ``y_axis`` grid.
 
     Cell bounds are the same as in :func:`cell.cell_points`: ``overlap`` is the capture
     radius in grid steps along each axis (0.5 tiles the plane without overlap, 1 reaches
     the neighbouring node, 2 the second one); all points in the window count equally.
+    ``clamp`` folds rows beyond the axis ends into the end cells (a sync loss below the
+    lowest RPM node still shows up on the map); off by default so sparse outliers never
+    distort a cell's statistic.
     """
     if stat not in STATS:
         raise LogError(f"stat must be one of {STATS}, got {stat!r}")
@@ -160,6 +165,9 @@ def corr_grid(log: Log, x_axis: Axis, y_axis: Axis, *, column: str = "CORR",
         raise LogError(f"overlap must be > 0, got {overlap}")
     vals = log.column(column).astype(np.float64)
     xs, ys = log.column(x), log.column(y)
+    if clamp:
+        xs = np.clip(xs, x_axis.values[0], x_axis.values[-1])
+        ys = np.clip(ys, y_axis.values[0], y_axis.values[-1])
 
     x_masks = []
     for v in x_axis:

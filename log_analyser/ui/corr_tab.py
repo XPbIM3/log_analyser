@@ -8,7 +8,7 @@ from typing import Callable
 
 import numpy as np
 
-from ..corr_table import STATS, CorrGrid, LogFilter, corr_grid, ve_grid
+from ..corr_table import CORR_STATS, CorrGrid, LogFilter, corr_grid, ve_grid
 from ..datalog import LogError
 from ..table import Table, TableKind
 from ..table_file import export_table, read_table
@@ -151,7 +151,7 @@ class CorrTab(ttk.Frame):
         self.min_points = self._var(str(DEFAULT_MIN_POINTS))
         self.overlap = self._var(f"{DEFAULT_OVERLAP:.1f}")
         ttk.Label(box, text="статистика").grid(row=0, column=0, sticky="w")
-        ttk.Combobox(box, values=STATS, state="readonly", width=8, textvariable=self.stat).grid(row=0, column=1, sticky="w")
+        ttk.Combobox(box, values=CORR_STATS, state="readonly", width=8, textvariable=self.stat).grid(row=0, column=1, sticky="w")
         ttk.Label(box, text="мин. точек").grid(row=1, column=0, sticky="w")
         ttk.Spinbox(box, from_=1, to=1000, increment=5, width=6, textvariable=self.min_points).grid(row=1, column=1, sticky="w")
         ttk.Label(box, text="радиус захвата").grid(row=2, column=0, sticky="w")
