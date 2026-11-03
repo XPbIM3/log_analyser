@@ -1,3 +1,4 @@
+from .afr_target import AfrFill, AfrFillError, afr_curve, afr_target_table, smootherstep
 from .axis import Axis, AxisError, KpaAxis, RpmAxis
 from .cell import cell_bounds, cell_points, plot_cell
 from .datalog import Log, LogError
@@ -6,6 +7,7 @@ from .table_file import TableFileError, export_table, read_table, table_to_strin
 from .tune import SPEEDUINO_TABLES, Constant, TableSpec, Tune, TuneError
 
 __all__ = [
+    "AfrFill", "AfrFillError", "afr_curve", "afr_target_table", "smootherstep",
     "Axis", "AxisError", "KpaAxis", "RpmAxis",
     "cell_bounds", "cell_points", "plot_cell",
     "Log", "LogError",
