@@ -88,3 +88,14 @@ def test_lookup():
     np.testing.assert_allclose(out, [10, 35])
     with pytest.raises(TableError, match="same shape"):
         t.lookup([1000, 2000], [30])
+
+
+def test_resample():
+    x, y = RpmAxis([1000, 2000, 3000]), KpaAxis([30, 50])
+    t = Table(TableKind.VE, x, y, [[10, 20, 30], [40, 50, 60]], caption="VE")
+    same = t.resample(x, y)
+    assert np.array_equal(same.values, t.values) and same.caption == "VE"
+    r = t.resample(RpmAxis([500, 1500, 3000]), KpaAxis([40, 60]), caption="r")
+    assert r.shape == (2, 3) and r.caption == "r" and r.kind is TableKind.VE
+    # 500 clamped to 1000, 60 clamped to 50
+    assert np.allclose(r.values, [[25, 30, 45], [40, 45, 60]])

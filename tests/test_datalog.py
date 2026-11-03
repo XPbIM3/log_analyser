@@ -212,3 +212,63 @@ def test_real_logs():
     assert not np.isnan(log.column("AFR")).any()
     tune = Tune.load(REAL_LOGS / "CurrentTune.msq")
     assert log.signature == tune.signature == "speeduino 202207"
+
+
+def _with_marks(path, marks_after):
+    """Insert TunerStudio MARK lines after the given data row indices (0-based)."""
+    lines = Path(path).read_text(encoding="latin-1").splitlines()
+    out = lines[:4]
+    for i, l in enumerate(lines[4:]):
+        out.append(l)
+        for k, text in enumerate(marks_after.get(i, [])):
+            out.append(f"MARK {i:03d}{k} - {text} - Tue Aug 11 10:38:30 YEKT 2026")
+    Path(path).write_text("\n".join(out) + "\n", encoding="latin-1")
+    return path
+
+
+def test_mark_lines_skipped_and_kept(tmp_path):
+    p = _with_marks(write_msl(tmp_path / "m.msl", rows(6)),
+                    {2: ["Going Offline: golf", "Going Online: golf", "RESET"], 4: ["Manual"]})
+    log = Log.load(p, shift=0)
+    assert len(log) == 6
+    assert [m[1].split(" - ")[1] for m in log.marks] == ["Going Offline: golf", "Going Online: golf",
+                                                         "RESET", "Manual"]
+    t = rows(6)
+    assert log.marks[0][0] == pytest.approx(t[2][0]) and log.marks[3][0] == pytest.approx(t[4][0])
+
+
+def test_shift_does_not_cross_marks(tmp_path):
+    # segments: rows 0-2 | 3-4 | 5 ; shift=1 drops the last row of every segment
+    p = _with_marks(write_msl(tmp_path / "m.msl", rows(6)), {2: ["RESET", "Going Online"], 4: ["Manual"]})
+    log = Log.load(p)
+    afr = [r[3] for r in rows(6)]
+    assert log.column("Time").tolist() == pytest.approx([r[0] for r in rows(6)][:2] + [rows(6)[3][0]])
+    assert log.column("AFR").tolist() == pytest.approx([afr[1], afr[2], afr[4]])
+    assert log.where(log.column("RPM") > 0).marks == log.marks
+
+
+def test_mark_only_file_has_no_data(tmp_path):
+    p = _with_marks(write_msl(tmp_path / "m.msl", []), {})
+    Path(p).write_text(Path(p).read_text(encoding="latin-1") + "MARK 001 - RESET - x\n", encoding="latin-1")
+    with pytest.raises(LogError, match="no data rows"):
+        Log.load(p)
+
+
+@pytest.mark.parametrize("first_time", ["NaN", "4884.347"])
+def test_stale_first_row_dropped(tmp_path, first_time):
+    r = rows(5)
+    r[0] = (first_time,) + r[0][1:]
+    log = Log.load(write_msl(tmp_path / "s.msl", r), shift=0)
+    assert len(log) == 4
+    t = log.column("Time")
+    assert np.all(np.isfinite(t)) and np.all(np.diff(t) >= 0)
+
+
+def test_valid_first_row_kept(tmp_path):
+    assert len(Log.load(write_msl(tmp_path / "v.msl", rows(5)), shift=0)) == 5
+
+
+def test_capture_date_author_suffix(tmp_path):
+    p = write_msl(tmp_path / "d.msl", rows(3),
+                  date="Tue Aug 11 15:17:18 YEKT 2026, File author: TunerStudio MS Lite! version 3.3.01")
+    assert Log.load(p).capture_date == "Tue Aug 11 15:17:18 YEKT 2026"

@@ -17,21 +17,26 @@ from .widgets import init_styles
 
 DEBOUNCE_MS = 50
 
+# Defaults of the AFR Target tab
+RPM_DEFAULT = dict(start=500, stop=7000, n=16, gamma=1.5)
+KPA_DEFAULT = dict(start=20, stop=100, n=16, gamma=1.5)
+FILL_DEFAULT = AfrFill(lean=15.0, rich=12.5, kpa_lean=0, kpa_rich=95, bias=1.0)
+
 
 class AfrTargetApp(ttk.Frame):
-    def __init__(self, root: tk.Tk) -> None:
-        super().__init__(root, padding=8)
-        self.root = root
-        init_styles(root)
+    def __init__(self, parent: tk.Misc) -> None:
+        super().__init__(parent, padding=8)
+        self.root = self.winfo_toplevel()
+        init_styles(self.root)
         self._pending: str | None = None
 
         left = ttk.Frame(self)
         left.grid(row=0, column=0, sticky="ns", padx=(0, 8))
-        self.rpm = AxisControl(left, RpmAxis, "Ось RPM", start=500, stop=7000, n=16, gamma=1.3,
+        self.rpm = AxisControl(left, RpmAxis, "Ось RPM", **RPM_DEFAULT,
                                range_max=12000, on_change=self.schedule_update)
-        self.kpa = AxisControl(left, KpaAxis, "Ось нагрузки, kPa", start=20, stop=100, n=16,
-                               gamma=1.0, range_max=300, on_change=self.schedule_update)
-        self.fill = AfrFillControl(left, AfrFill(), kpa_max=300, on_change=self.schedule_update)
+        self.kpa = AxisControl(left, KpaAxis, "Ось нагрузки, kPa", **KPA_DEFAULT,
+                               range_max=300, on_change=self.schedule_update)
+        self.fill = AfrFillControl(left, FILL_DEFAULT, kpa_max=300, on_change=self.schedule_update)
         for w in (self.rpm, self.kpa, self.fill):
             w.pack(fill=tk.X, pady=(0, 8))
 
@@ -99,12 +104,8 @@ class AfrTargetApp(ttk.Frame):
 
 
 def main() -> None:
-    root = tk.Tk()
-    root.title("log_analyser — AFR Target")
-    root.geometry("1200x760")
-    root.minsize(900, 600)
-    AfrTargetApp(root).pack(fill=tk.BOTH, expand=True)
-    root.mainloop()
+    from .app import main as app_main
+    app_main()
 
 
 if __name__ == "__main__":

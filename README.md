@@ -11,6 +11,7 @@
 - `log_analyser/datalog.py`: `Log.load("x.msl")` — DataFrame лога; AFR/Lambda по умолчанию сдвигаются на 1 строку вверх (ответ смеси на параметры строки). `Log.load_many("input/*.msl")`, `Log.concat`, `log.where(...)`, `log.with_corr("AFR Target" | afr_table)`.
 - `log_analyser/cell.py`: `cell_points(...)` / `plot_cell(log, x_axis, y_axis, rpm, kpa, what="CORR", vs="RPM", path="cell.png")`.
 - `log_analyser/afr_target.py`: `AfrFill(lean, rich, kpa_lean, kpa_rich, bias)` + `afr_target_table(rpm, kpa, fill)` — AFR target: плато lean до `kpa_lean`, плато rich от `kpa_rich`, между ними S-переход (smootherstep), вдоль RPM постоянно.
+- `log_analyser/corr_table.py`: `LogFilter` (установившийся режим: CLT, DFCO, прогрев, ускорительное обогащение + хвост, диапазон AFR) и `corr_grid(log, x_axis, y_axis, stat, min_points, overlap)` → `CorrGrid` (коррекция по ячейкам, счётчики, `apply_to(ve)`).
 - `log_analyser/ui/`: tkinter-интерфейс (ядро его не импортирует).
 - `log_analyser/table_file.py`: `export_table(table, "out.table")` / `read_table(...)` — формат TunerStudio `.table`.
 
@@ -25,5 +26,8 @@ python3 -m venv .venv
 ```
 .venv/bin/python -m log_analyser.ui
 ```
-Окно создания AFR target таблицы: оси RPM и kPa (min / max / points / gamma), заполнение AFR вдоль нагрузки, живой просмотр таблицы и кривой, экспорт в `.table`.
+Вкладки:
+- **Данные** — тюн `.msq` и список логов `.msl` (загрузка в фоне, удаление, очистка).
+- **AFR Target** — генерация таблицы целевого AFR: оси RPM и kPa (min / max / points / gamma), заполнение вдоль нагрузки, экспорт в `.table`.
+- **Коррекция** — таблица коррекции по логам: target из тюна / сгенерированный / из колонки лога / из файла, оси VE из тюна или target, фильтр, медиана/среднее, мин. точек; режимы «коррекция %», «точек», «VE новый» и экспорт VE.
 На Linux/WSL нужен tkinter: `sudo apt install python3-tk`.

@@ -126,3 +126,9 @@ class Table:
     def __repr__(self) -> str:
         rows, cols = self.shape
         return f"Table({self._kind.label}, {self._caption!r}, {rows}x{cols})"
+
+    def resample(self, x: Axis, y: Axis, caption: str | None = None) -> "Table":
+        """This table on new axes: every node of ``x`` × ``y`` gets :meth:`lookup` (bilinear, clamped)."""
+        xx, yy = np.meshgrid(x.values.astype(np.float64), y.values.astype(np.float64))
+        return Table(self._kind, x, y, self.lookup(xx, yy),
+                     caption=self._caption if caption is None else caption)

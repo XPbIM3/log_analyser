@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import glob
+import io
 import os
 import warnings
 from datetime import datetime
@@ -16,6 +17,7 @@ Condition = Union[np.ndarray, pd.Series, Callable[[pd.DataFrame], Union[np.ndarr
 
 DEFAULT_SHIFT_COLUMNS = ("AFR", "Lambda")
 SOURCE_COLUMN = "source"
+MARK_PREFIX = "MARK "
 
 # target column -> measured column
 _MEASURED_FOR_TARGET_COLUMN = {"AFR Target": "AFR", "Lambda Target": "Lambda"}
@@ -41,13 +43,16 @@ class Log:
     """A data log as a ``pd.DataFrame`` plus metadata from the .msl header."""
 
     def __init__(self, data: pd.DataFrame, sources: Sequence[str] = (), signature: str = "",
-                 firmware: str = "", capture_date: str = "", units: dict[str, str] | None = None) -> None:
+                 firmware: str = "", capture_date: str = "", units: dict[str, str] | None = None,
+                 marks: Sequence[tuple[float, str]] = ()) -> None:
         self.data = data
         self.sources = tuple(sources)
         self.signature = signature
         self.firmware = firmware
         self.capture_date = capture_date
         self.units = dict(units or {})
+        # TunerStudio "MARK nnn - ..." lines: (Time of the last data row before the mark, text)
+        self.marks = tuple(marks)
 
     # ------------------------------------------------------------------ import
 
@@ -60,6 +65,11 @@ class Log:
         row ``i`` gets the mixture measured in row ``i + shift`` — the engine's
         response to the parameters (VE, PW, ...) of row ``i``. Rows left without a
         value after the shift are dropped. ``shift=0`` disables it.
+
+        ``MARK ...`` lines that TunerStudio writes into the data (going offline/online,
+        ECU reset, manual marks) are skipped and kept in :attr:`marks`. They split the
+        log into segments; the shift is applied within each segment, so a mixture
+        value never crosses a reconnect/reset gap.
         """
         path = os.fspath(path)
         if shift < 0:
@@ -78,7 +88,8 @@ class Log:
         for l in lines[:header]:
             l = l.strip().strip('"')
             if l.startswith("Capture Date:"):
-                capture_date = l.split(":", 1)[1].strip()
+                # "Capture Date: Tue Aug 11 15:17:18 YEKT 2026, File author: TunerStudio ..."
+                capture_date = l.split(":", 1)[1].split(",", 1)[0].strip()
             elif l and not firmware:
                 firmware = l
         signature = firmware.split(":", 1)[0].strip()
@@ -96,29 +107,60 @@ class Log:
                 skip.append(first)
 
         data_start = skip[-1] + 1 if skip and skip[-1] > header else header + 1
+        data_lines: list[str] = []
+        segments: list[int] = []
+        marks: list[tuple[int, str]] = []          # (number of data rows before the mark, text)
+        seg = 0
         for n, l in enumerate(lines[data_start:], start=data_start + 1):
-            if l and l.count("\t") + 1 != len(names):
+            if not l:
+                continue
+            if l.startswith(MARK_PREFIX):
+                marks.append((len(data_lines), l.strip()))
+                if data_lines and (not segments or segments[-1] == seg):
+                    seg += 1
+                continue
+            if l.count("\t") + 1 != len(names):
                 raise LogError(f"{path}: cannot parse line {n}: {l.count(chr(9)) + 1} fields, "
                                f"header has {len(names)}")
+            data_lines.append(l)
+            segments.append(seg)
+        if not data_lines:
+            raise LogError(f"{path}: no data rows")
 
         try:
-            df = pd.read_csv(path, sep="\t", header=0, skiprows=skip, encoding="latin-1", index_col=False)
+            df = pd.read_csv(io.StringIO("\n".join([lines[header]] + data_lines)), sep="\t",
+                             header=0, index_col=False)
         except (pd.errors.ParserError, pd.errors.EmptyDataError, ValueError) as e:
             raise LogError(f"{path}: cannot parse data: {e}") from None
         if df.empty:
             raise LogError(f"{path}: no data rows")
 
+        # TunerStudio writes a stale first row: Time is NaN or left over from the previous
+        # recording (e.g. 4884.3 followed by 0.000); the rest of it duplicates the next row.
+        if "Time" in df.columns and len(df) > 1:
+            t0, t1 = df["Time"].iloc[0], df["Time"].iloc[1]
+            if pd.isna(t0) or t0 > t1:
+                df = df.iloc[1:].reset_index(drop=True)
+                segments = segments[1:]
+                marks = [(max(0, i - 1), text) for i, text in marks]
+                if df.empty:
+                    raise LogError(f"{path}: no data rows")
+
+        time = df["Time"].to_numpy() if "Time" in df.columns else None
+        mark_list = [(float(time[i - 1]) if time is not None and i > 0 else float("nan"), text)
+                     for i, text in marks]
+
         if shift:
             cols = [c for c in shift_columns if c in df.columns]
-            for c in cols:
-                df[c] = df[c].shift(-shift)
             if cols:
+                grouped = df[cols].groupby(np.asarray(segments), sort=False)
+                df[cols] = grouped.shift(-shift)
                 df = df.dropna(subset=cols)
         df = df.reset_index(drop=True)
         df[SOURCE_COLUMN] = os.path.basename(path)
 
         return cls(df, sources=(path,), signature=signature, firmware=firmware,
-                   capture_date=capture_date, units=units)
+                   capture_date=capture_date, units=units, marks=mark_list)
 
     @classmethod
     def load_many(cls, pattern: str | Sequence[str | os.PathLike], columns: str = "same", **load_kwargs) -> "Log":
@@ -170,7 +212,8 @@ class Log:
                     units.setdefault(k, v)
         first = logs[0]
         return cls(data, sources=[s for l in logs for s in l.sources], signature=first.signature,
-                   firmware=first.firmware, capture_date=first.capture_date, units=units)
+                   firmware=first.firmware, capture_date=first.capture_date, units=units,
+                   marks=[m for l in logs for m in l.marks])
 
     def where(self, cond: Condition) -> "Log":
         """Rows where ``cond`` is true: a boolean mask or ``callable(df) -> mask``."""
@@ -235,4 +278,4 @@ class Log:
 
     def _replace(self, data: pd.DataFrame) -> "Log":
         return Log(data, sources=self.sources, signature=self.signature, firmware=self.firmware,
-                   capture_date=self.capture_date, units=self.units)
+                   capture_date=self.capture_date, units=self.units, marks=self.marks)
