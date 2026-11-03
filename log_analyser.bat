@@ -1,0 +1,1 @@
+python -m log_analyser.ui
