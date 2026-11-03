@@ -290,16 +290,9 @@ class CorrTab(ttk.Frame):
                             + ("VE из тюна в узлах новых осей." if ve is not None else "0 (тюн не загружен)."))
 
         valid = g.valid
-        used = int(g.counts[valid].sum())
-        lines = [
-            f"Строк: {len(log)} → после фильтра {len(filtered)} ({100 * len(filtered) / len(log):.0f} %). "
-            f"Ячеек с данными: {int(valid.sum())} из {valid.size}"
-            + (f", в них {used} точек." if g.overlap <= 0.5 else
-               f"; радиус {g.overlap:g} — точка попадает в несколько соседних ячеек."),
-            "Фильтр: " + "; ".join(flt.report(log)),
-            "CORR = AFR измеренный / AFR target; > 1 — беднее цели (VE надо поднять), < 1 — богаче.",
-        ]
-        if self.ve_note:
+        lines = [f"Строк {len(log)} → после фильтра {len(filtered)} "
+                 f"({100 * len(filtered) / len(log):.0f} %) · ячеек с данными {int(valid.sum())} из {valid.size}"]
+        if self.ve_new is None and self.ve_note:
             lines.append(self.ve_note)
         if notes:
             lines.append("Объединение логов: " + "; ".join(notes))

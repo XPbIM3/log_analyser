@@ -62,6 +62,8 @@ def test_corr_grid_stats_and_errors():
     log = Log(pd.DataFrame({"RPM": [2000] * 3, "MAP": [60] * 3, "CORR": [1.0, 1.0, 1.3]}))
     assert corr_grid(log, X, Y, min_points=1, stat="median").values[1, 1] == pytest.approx(1.0)
     assert corr_grid(log, X, Y, min_points=1, stat="mean").values[1, 1] == pytest.approx(1.1)
+    assert corr_grid(log, X, Y, min_points=1, stat="q25").values[1, 1] == pytest.approx(1.0)
+    assert corr_grid(log, X, Y, min_points=1, stat="q75").values[1, 1] == pytest.approx(1.15)
     with pytest.raises(LogError):
         corr_grid(log, X, Y, stat="max")
     with pytest.raises(LogError):

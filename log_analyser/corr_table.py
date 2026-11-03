@@ -10,7 +10,13 @@ from .cell import _bounds
 from .datalog import Log, LogError
 from .table import Table, TableKind
 
-STATS = ("median", "mean")
+STATS = ("median", "mean", "q25", "q75")
+_STAT_FUNCS = {
+    "median": np.median,
+    "mean": np.mean,
+    "q25": lambda a: np.percentile(a, 25),   # lower estimate of the cell
+    "q75": lambda a: np.percentile(a, 75),   # upper estimate of the cell
+}
 # VE actually applied by the ECU in each row; names differ between TunerStudio/firmware versions
 VE_COLUMNS = ("Current VE", "VE (Current", "VE1")
 
@@ -167,7 +173,7 @@ def corr_grid(log: Log, x_axis: Axis, y_axis: Axis, *, column: str = "CORR",
     out = np.full((len(y_axis), len(x_axis)), np.nan)
     iqr = np.full((len(y_axis), len(x_axis)), np.nan)
     counts = np.zeros((len(y_axis), len(x_axis)), dtype=np.int64)
-    func = np.median if stat == "median" else np.mean
+    func = _STAT_FUNCS[stat]
     for i, ym in enumerate(y_masks):
         if not ym.any():
             continue

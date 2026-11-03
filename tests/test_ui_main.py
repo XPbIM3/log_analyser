@@ -122,10 +122,18 @@ def test_cell_panel_and_spread(win):
     c._cell_clicked(i, j)
     p = c.cell_panel
     assert len(p.points) == g.counts[i, j]       # same cell bounds as the aggregation
-    assert "медиана" in p.stats.get("1.0", "end")
+    assert "медиана" in p.title.cget("text")
     assert p.x_col.get() == "rpm/s"
+    assert p.y_col.get() == "CORR"
     p.x_col.set("TPS")
     p._draw()
+    p.y_col.set("Lambda")
+    p.x_col.set("PW")
+    p._draw()
+    assert p.ax_scat.get_ylabel().startswith("Lambda") and p.ax_scat.get_xlabel().startswith("PW")
+    assert any("r =" in t.get_text() for t in p.ax_scat.get_legend().get_texts())
+    p._swap()
+    assert (p.x_col.get(), p.y_col.get()) == ("Lambda", "PW")
 
     c.mode.set("spread")
     c.refresh()                                  # selection kept -> panel refreshed
@@ -141,7 +149,7 @@ def test_cell_panel_and_spread(win):
     c.f_tps.set("2")
     c.refresh()
     assert int(c.grid_result.counts.sum()) < n_before
-    assert "TPS > 2" in c.status.cget("text") and "rpm/s ≥ 0" in c.status.cget("text")
+    assert "после фильтра" in c.status.cget("text")
 
     c.view.selected = None
     c.min_points.set("100000")                    # nothing valid any more
