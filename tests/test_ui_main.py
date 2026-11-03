@@ -52,10 +52,26 @@ def test_sync_loss_map(win):
     win.sync._cell_clicked(i, j)
     assert f"потерь 1" in win.sync.cell_info.cget("text")
     assert f"точек {g.counts[i, j]}" in win.sync.cell_info.cget("text")
-    # same on the generated AFR target axes
-    win.sync.axes_src.set("target")
+    # same on the tune VE axes
+    win.sync.axes_src.set("ve")
     win.sync.refresh()
     assert int(np.nansum(win.sync.grid_result.values)) == 1
+
+
+def test_canvas_texts_have_explicit_fill(win):
+    # macOS Dark Mode: canvas text without an explicit fill defaults to systemTextColor
+    # (white) -> invisible on the white canvases (axis labels, slider labels)
+    def walk(w):
+        yield w
+        for ch in w.winfo_children():
+            yield from walk(ch)
+
+    for w in walk(win):
+        if isinstance(w, tk.Canvas):
+            for item in w.find_all():
+                if w.type(item) == "text":
+                    fill = w.itemcget(item, "fill")
+                    assert fill and fill != "systemTextColor", f"text without fill: {w}"
 
 
 def test_no_logs_message(win):

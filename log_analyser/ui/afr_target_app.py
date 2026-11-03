@@ -24,8 +24,13 @@ DEBOUNCE_MS = 50
 # Defaults of the AFR Target tab
 RPM_DEFAULT = dict(start=600, stop=6000, n=16, gamma=1.5)
 KPA_DEFAULT = dict(start=30, stop=100, n=16, gamma=1.5)
-FILL_DEFAULT = AfrFill(lean=15.0, rich=12.5, kpa_lean=30, kpa_rich=95)
-RPM_RANGE_DEFAULT = (0.7, 1.0)     # RPM transition when first enabled, as fractions of the axis span
+# transition handles default to 0 … axis max (the sliders' own range is 0 … 2× axis max):
+# e.g. for the 30…100 kPa axis the transition runs 0…100, adjustable up to 0…200
+KPA_SLIDER_DEFAULT = (0, KPA_DEFAULT["stop"])
+RPM_SLIDER_DEFAULT = (0, RPM_DEFAULT["stop"])
+FILL_DEFAULT = AfrFill(lean=15.0, rich=12.5,
+                       kpa_lean=KPA_SLIDER_DEFAULT[0], kpa_rich=KPA_SLIDER_DEFAULT[1],
+                       rpm_lean=RPM_SLIDER_DEFAULT[0], rpm_rich=RPM_SLIDER_DEFAULT[1])
 KPA_SLIDER_Q = 1
 RPM_SLIDER_Q = 50
 SLIDER_OVERRUN = 48                # px of slider track beyond the table on each side
@@ -63,9 +68,8 @@ class AfrTargetApp(ttk.Frame):
             quantum=KPA_SLIDER_Q, on_change=self._ranges_changed)
         self.kpa_slider.grid(row=0, column=0, rowspan=3, sticky="ns")
         rpm = self.rpm.axis
-        span = rpm.values[-1] - rpm.values[0]
         self.rpm_slider = AxisRangeSlider(
-            right, rpm, *(rpm.values[0] + f * span for f in RPM_RANGE_DEFAULT), orient="horizontal",
+            right, rpm, *RPM_SLIDER_DEFAULT, orient="horizontal",
             pad_lo=LABEL_W, pad_hi=SLIDER_OVERRUN + 2,
             quantum=RPM_SLIDER_Q, on_change=self._ranges_changed)
         self.rpm_slider.grid(row=3, column=1, columnspan=2, sticky="ew")

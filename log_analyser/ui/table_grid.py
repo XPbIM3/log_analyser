@@ -91,11 +91,13 @@ class TableGrid(ttk.Frame):
         norm = Normalize(lo, hi if hi > lo else lo + 1e-9, clip=True)
         cmap = colormaps[cmap_name]
 
-        c.create_text(label_w, title_h / 2, anchor="w", font=("TkDefaultFont", 10, "bold"), text=title)
+        c.create_text(label_w, title_h / 2, anchor="w", font=("TkDefaultFont", 10, "bold"), text=title,
+                      fill="black")
         for r in range(rows):
             i = rows - 1 - r                      # highest y on top
             y0 = title_h + r * ch
-            c.create_text(label_w - 4, y0 + ch / 2, anchor="e", font=font, text=str(y[i]))
+            c.create_text(label_w - 4, y0 + ch / 2, anchor="e", font=font, text=str(y[i]),
+                          fill="black")
             for j in range(cols):
                 x0 = label_w + j * cw
                 v = float(colors[i, j])
@@ -110,7 +112,7 @@ class TableGrid(ttk.Frame):
                 c.create_text(x0 + cw / 2, y0 + ch / 2, font=font, fill=fg, text=texts[i][j])
         y_lab = title_h + rows * ch + label_h / 2
         for j in range(cols):
-            c.create_text(label_w + (j + 0.5) * cw, y_lab, font=font, text=str(x[j]))
+            c.create_text(label_w + (j + 0.5) * cw, y_lab, font=font, text=str(x[j]), fill="black")
         if self.selected is not None:
             i, j = self.selected
             x0, y0 = label_w + j * cw, title_h + (rows - 1 - i) * ch

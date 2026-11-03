@@ -171,11 +171,12 @@ class AxisRangeSlider(ttk.Frame):
                 c.create_rectangle(mid - HANDLE, p - HANDLE / 2, mid + HANDLE, p + HANDLE / 2,
                                    fill=colour, outline="black")
                 c.create_text(mid, p - label_side * (HANDLE + 6), text=f"{value:g}",
-                              font=("TkDefaultFont", 8))
+                              font=("TkDefaultFont", 8), fill="black")
             else:
                 c.create_rectangle(p - HANDLE / 2, mid - HANDLE, p + HANDLE / 2, mid + HANDLE,
                                    fill=colour, outline="black")
-                c.create_text(p, mid + HANDLE + 8, text=f"{value:g}", font=("TkDefaultFont", 8))
+                c.create_text(p, mid + HANDLE + 8, text=f"{value:g}", font=("TkDefaultFont", 8),
+                              fill="black")
 
     def _press(self, event: tk.Event) -> None:
         if not self.enabled:

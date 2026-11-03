@@ -35,7 +35,7 @@ class LogFilter:
     exclude_dfco: bool = True                # DFCO != 0 -> no fuel
     exclude_warmup: bool = True              # Gwarm > 100 -> warm-up enrichment active
     exclude_accel: bool = True               # Accel Enrich != 100 -> accel enrichment active ...
-    accel_tail: int = 10                     # ... and this many rows after it
+    accel_tail: int = 0                      # ... and this many rows after it
     afr_min: float | None = 10.0             # wideband out of range / rails
     afr_max: float | None = 19.5
     rpm_dot_min: float | None = None         # rpm/s >= value (0: no falling RPM / engine braking)

@@ -15,7 +15,7 @@ from .table_grid import TableGrid
 DEBOUNCE_MS = 150
 DEFAULT_OVERLAP = 0.5     # windows tile the plane: every loss is counted exactly once
 
-AXES = (("ve", "оси VE из тюна"), ("target", "оси таблицы AFR target"))
+AXES = (("target", "оси таблицы AFR target"), ("ve", "оси VE из тюна"))
 
 
 class SyncTab(ttk.Frame):
@@ -33,7 +33,7 @@ class SyncTab(ttk.Frame):
         left.grid(row=0, column=0, sticky="ns", padx=(0, 8))
         box = ttk.LabelFrame(left, text="Оси", padding=8)
         box.pack(fill=tk.X, pady=(0, 8))
-        self.axes_src = self._var("ve")
+        self.axes_src = self._var("target")
         for key, text in AXES:
             ttk.Radiobutton(box, text=text, value=key, variable=self.axes_src).pack(anchor="w")
         box = ttk.LabelFrame(left, text="Радиус захвата", padding=8)

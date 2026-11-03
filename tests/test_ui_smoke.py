@@ -62,8 +62,12 @@ def test_range_sliders(app):
     app.update_now()
     assert (app.fill.fill.kpa_lean, app.fill.fill.kpa_rich) == (60, 80)
     assert not np.array_equal(app.table.values[:, 0], col0)
-    # rpm off by default: constant along rpm
+    # rpm off: constant along rpm
+    app.rpm_on.set(False)
+    app._ranges_changed()
+    app.update_now()
     assert np.all(app.table.values == app.table.values[:, :1])
+    # rpm on: the transition reaches rich at the last rpm column
     app.rpm_on.set(True)
     app._ranges_changed()
     app.rpm_slider.set(4000, 5000)
