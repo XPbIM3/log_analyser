@@ -9,24 +9,32 @@ from .axis import Axis
 from .datalog import Log, LogError
 
 
-def _bounds(axis: Axis, value: int, overlap: float) -> tuple[float, float]:
-    vals = axis.values
-    idx = np.flatnonzero(vals == value)
+def _axis_at(vals: np.ndarray, t: float) -> float:
+    """Axis value at fractional node index ``t``: linear within a step, beyond the ends
+    the first/last step is continued."""
+    n = vals.size
+    k = int(np.clip(np.floor(t), 0, n - 2))
+    return float(vals[k] + (t - k) * (vals[k + 1] - vals[k]))
+
+
+def _bounds(axis: Axis, value: int, radius: float) -> tuple[float, float]:
+    vals = axis.values.astype(np.float64)
+    idx = np.flatnonzero(axis.values == value)
     if idx.size == 0:
         raise LogError(f"{value} is not a node of {axis!r}")
     i = int(idx[0])
-    left = vals[i] - vals[i - 1] if i > 0 else vals[i + 1] - vals[i]
-    right = vals[i + 1] - vals[i] if i < vals.size - 1 else vals[i] - vals[i - 1]
-    return float(value - left * overlap), float(value + right * overlap)
+    return _axis_at(vals, i - radius), _axis_at(vals, i + radius)
 
 
 def cell_bounds(x_axis: Axis, y_axis: Axis, x_value: int, y_value: int,
                 overlap: float = 0.5) -> tuple[float, float, float, float]:
     """``(x_lo, x_hi, y_lo, y_hi)`` around node ``(x_value, y_value)``.
 
-    Each side extends ``overlap`` × distance to the neighbouring node: 0.5 reaches the
-    midpoint (cells tile without overlap), 1.0 reaches the neighbour. At an axis end
-    the distance to the only neighbour is used on both sides.
+    ``overlap`` is the capture radius in grid steps, counted along each axis by node
+    index (so it follows non-linear axes): 0.5 reaches the midpoint to the neighbour
+    (cells tile without overlap), 1 the neighbouring node, 1.5 the midpoint between the
+    1st and 2nd neighbours, 2 the 2nd neighbour. Beyond an axis end the end step is
+    continued. All points inside the window count equally.
     """
     if overlap <= 0:
         raise LogError(f"overlap must be > 0, got {overlap}")

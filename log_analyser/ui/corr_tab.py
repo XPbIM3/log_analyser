@@ -13,6 +13,7 @@ from ..datalog import LogError
 from ..table import Table, TableKind
 from ..table_file import export_table, read_table
 from .session import Session
+from .cell_panel import CellPanel
 from .table_grid import TableGrid
 
 DEBOUNCE_MS = 150
@@ -23,15 +24,19 @@ DEFAULT_TARGET = "generated"
 DEFAULT_AXES = "target"
 DEFAULT_STAT = "median"
 DEFAULT_MIN_POINTS = 10
-DEFAULT_OVERLAP = 1.0
-DEFAULT_MODE = "corr"
+DEFAULT_OVERLAP = 1.5
+DEFAULT_MODE = "ve"
+DEFAULT_RPM_DOT_ON = True          # rpm/s >= 0
+DEFAULT_TPS_ON = True              # TPS > DEFAULT_TPS_ABOVE
+DEFAULT_TPS_ABOVE = 0
 
 TARGETS = (("tune", "из тюна (afrTable)"),
            ("generated", "сгенерированная (вкладка AFR Target)"),
            ("log", "из лога (колонка «AFR Target»)"),
            ("file", "из файла .table"))
 AXES = (("ve", "оси VE из тюна"), ("target", "оси таблицы target"))
-MODES = (("corr", "коррекция, %"), ("counts", "точек"), ("ve", "VE новый"))
+MODES = (("corr", "коррекция, %"), ("spread", "разброс (IQR)"), ("counts", "точек"), ("ve", "VE новый"))
+IQR_MAX = 0.20           # colour scale of the spread view: 0 … 20 п.п.
 
 
 class CorrTab(ttk.Frame):
@@ -56,8 +61,12 @@ class CorrTab(ttk.Frame):
 
         right = ttk.Frame(self)
         right.grid(row=0, column=1, sticky="nsew")
-        self.view = TableGrid(right, cmap="RdBu", on_click=self._cell_clicked)
-        self.view.pack(fill=tk.BOTH, expand=True)
+        paned = ttk.PanedWindow(right, orient=tk.VERTICAL)
+        paned.pack(fill=tk.BOTH, expand=True)
+        self.view = TableGrid(paned, cmap="RdBu", on_click=self._cell_clicked)
+        self.cell_panel = CellPanel(paned)
+        paned.add(self.view, weight=3)
+        paned.add(self.cell_panel, weight=2)
         self.cell_info = ttk.Label(right, font=("TkDefaultFont", 10))
         self.cell_info.pack(fill=tk.X, pady=(4, 0))
         self.status = ttk.Label(right, foreground="#555555", wraplength=800, justify=tk.LEFT)
@@ -107,6 +116,9 @@ class CorrTab(ttk.Frame):
         self.f_afr_on = self._var(True, tk.BooleanVar)
         self.f_afr_lo = self._var(f"{d.afr_min:g}")
         self.f_afr_hi = self._var(f"{d.afr_max:g}")
+        self.f_rpmdot_on = self._var(DEFAULT_RPM_DOT_ON, tk.BooleanVar)
+        self.f_tps_on = self._var(DEFAULT_TPS_ON, tk.BooleanVar)
+        self.f_tps = self._var(f"{DEFAULT_TPS_ABOVE:g}")
 
         r = 0
         ttk.Checkbutton(box, text="CLT ≥, °C", variable=self.f_clt_on).grid(row=r, column=0, sticky="w")
@@ -125,6 +137,12 @@ class CorrTab(ttk.Frame):
         ttk.Spinbox(rng, from_=5, to=25, increment=0.5, width=5, textvariable=self.f_afr_lo).pack(side=tk.LEFT)
         ttk.Label(rng, text="…").pack(side=tk.LEFT)
         ttk.Spinbox(rng, from_=5, to=25, increment=0.5, width=5, textvariable=self.f_afr_hi).pack(side=tk.LEFT)
+        r += 1
+        ttk.Checkbutton(box, text="rpm/s ≥ 0 (без сброса оборотов)",
+                        variable=self.f_rpmdot_on).grid(row=r, column=0, columnspan=3, sticky="w")
+        r += 1
+        ttk.Checkbutton(box, text="TPS >, %", variable=self.f_tps_on).grid(row=r, column=0, sticky="w")
+        ttk.Spinbox(box, from_=0, to=100, increment=1, width=6, textvariable=self.f_tps).grid(row=r, column=1, sticky="w")
 
     def _build_aggregation(self, parent: tk.Misc) -> None:
         box = ttk.LabelFrame(parent, text="Агрегация по ячейкам", padding=8)
@@ -136,11 +154,11 @@ class CorrTab(ttk.Frame):
         ttk.Combobox(box, values=STATS, state="readonly", width=8, textvariable=self.stat).grid(row=0, column=1, sticky="w")
         ttk.Label(box, text="мин. точек").grid(row=1, column=0, sticky="w")
         ttk.Spinbox(box, from_=1, to=1000, increment=5, width=6, textvariable=self.min_points).grid(row=1, column=1, sticky="w")
-        ttk.Label(box, text="перекрытие").grid(row=2, column=0, sticky="w")
-        ttk.Spinbox(box, from_=0.1, to=1.0, increment=0.1, width=6, format="%.1f",
+        ttk.Label(box, text="радиус захвата").grid(row=2, column=0, sticky="w")
+        ttk.Spinbox(box, from_=0.1, to=4.0, increment=0.1, width=6, format="%.1f",
                     textvariable=self.overlap).grid(row=2, column=1, sticky="w")
         ttk.Label(box, foreground="#666666", wraplength=300,
-                  text="0.5 — ячейки не пересекаются, 1.0 — до соседнего узла").grid(row=3, column=0, columnspan=2, sticky="w")
+                  text="в шагах сетки: 0.5 — до середины к соседу, 1 — до соседа, 2 — до второго соседа").grid(row=3, column=0, columnspan=2, sticky="w")
 
     def _build_view(self, parent: tk.Misc) -> None:
         box = ttk.LabelFrame(parent, text="Показать", padding=8)
@@ -188,6 +206,8 @@ class CorrTab(ttk.Frame):
             accel_tail=int(num(self.f_tail, "строк после ускорения")),
             afr_min=num(self.f_afr_lo, "AFR от") if on_afr else None,
             afr_max=num(self.f_afr_hi, "AFR до") if on_afr else None,
+            rpm_dot_min=0.0 if self.f_rpmdot_on.get() else None,
+            tps_above=num(self.f_tps, "TPS") if self.f_tps_on.get() else None,
         )
 
     def _target(self) -> tuple[Table | str, Table | None]:
@@ -211,18 +231,25 @@ class CorrTab(ttk.Frame):
         self._pending = None
         has_afr = "afrTable" in self.session.tables
         self._target_buttons["tune"].state(["!disabled"] if has_afr else ["disabled"])
-        self.grid_result = self.ve_base = self.ve_new = None
+        self.grid_result = self.ve_base = self.ve_new = self.corr_log = None
         self.ve_note = ""
         try:
             self._compute()
         except (LogError, ValueError) as e:
             self.view.clear(str(e))
+            self.cell_panel.clear()
             self.cell_info.configure(text="")
             self.status.configure(text="", foreground="#555555")
             self._update_export()
             return
         self._render()
         self._update_export()
+        sel = self.view.selected
+        if sel is not None:
+            self._cell_clicked(*sel)     # same axes: refresh the panel with the new data
+        else:
+            self.cell_panel.clear()
+            self.cell_info.configure(text="")
 
     def _compute(self) -> None:
         if not self.session.logs:
@@ -244,10 +271,11 @@ class CorrTab(ttk.Frame):
             min_points = int(self.min_points.get())
             overlap = float(self.overlap.get())
         except ValueError:
-            raise LogError("мин. точек / перекрытие: не число") from None
+            raise LogError("мин. точек / радиус захвата: не число") from None
         if not len(filtered):
             raise LogError("после фильтра не осталось строк:\n" + "\n".join(flt.report(log)))
         corr = filtered.with_corr(target)
+        self.corr_log = corr
         g = corr_grid(corr, x_axis, y_axis, stat=self.stat.get(),
                       min_points=min_points, overlap=overlap)
         self.grid_result = g
@@ -265,7 +293,9 @@ class CorrTab(ttk.Frame):
         used = int(g.counts[valid].sum())
         lines = [
             f"Строк: {len(log)} → после фильтра {len(filtered)} ({100 * len(filtered) / len(log):.0f} %). "
-            f"Ячеек с данными: {int(valid.sum())} из {valid.size}, в них {used} точек.",
+            f"Ячеек с данными: {int(valid.sum())} из {valid.size}"
+            + (f", в них {used} точек." if g.overlap <= 0.5 else
+               f"; радиус {g.overlap:g} — точка попадает в несколько соседних ячеек."),
             "Фильтр: " + "; ".join(flt.report(log)),
             "CORR = AFR измеренный / AFR target; > 1 — беднее цели (VE надо поднять), < 1 — богаче.",
         ]
@@ -286,6 +316,13 @@ class CorrTab(ttk.Frame):
             self.view.show_grid(g.x, g.y, colors, texts, cmap="Greens", vmin=0,
                                 vmax=float(max(1, g.counts.max())),
                                 title=f"Точек в ячейке (мин. для расчёта {g.min_points})")
+            return
+        if mode == "spread":
+            iqr = g.iqr
+            texts = [[f"{100 * v:.1f}" if np.isfinite(v) else "" for v in row] for row in iqr]
+            self.view.show_grid(g.x, g.y, iqr, texts, cmap="Oranges", vmin=0, vmax=IQR_MAX,
+                                title="Разброс коррекции в ячейке: IQR (75 % − 25 %), п.п.; "
+                                      "тёмные — подозрительные, смотрите по клику")
             return
         if mode == "ve":
             if self.ve_new is None:
@@ -322,6 +359,8 @@ class CorrTab(ttk.Frame):
             if self.ve_base is not None:
                 text += f", VE из тюна {self.ve_base.values[i, j]:.0f}"
         self.cell_info.configure(text=text)
+        if self.corr_log is not None:
+            self.cell_panel.show(self.corr_log, g, i, j)
 
     def _update_export(self) -> None:
         self.export_btn.state(["!disabled"] if self.ve_new is not None else ["disabled"])

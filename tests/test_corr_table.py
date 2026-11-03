@@ -129,3 +129,23 @@ def test_ve_grid_errors():
     afr = Table(TableKind.AFR, X, Y, np.full((3, 3), 14.7))
     with pytest.raises(LogError, match="VE table"):
         ve_grid(_ve_log(), X, Y, base=afr)
+
+
+def test_corr_grid_iqr():
+    vals = [0.9, 1.0, 1.0, 1.1, 1.3]
+    log = Log(pd.DataFrame({"RPM": [2000] * 5, "MAP": [60] * 5, "CORR": vals}))
+    g = corr_grid(log, X, Y, min_points=5)
+    q25, q75 = np.percentile(vals, [25, 75])
+    assert g.iqr[1, 1] == pytest.approx(q75 - q25)
+    assert np.isnan(g.iqr[0, 0])
+    assert np.isnan(corr_grid(log, X, Y, min_points=6).iqr[1, 1])
+
+
+def test_filter_rpm_dot_and_tps():
+    log = make_log(**{"rpm/s": [-50, 0, 120, 0], "TPS": [10, 0, 5, 3.5]})
+    assert LogFilter().mask(log).all()                                  # both off by default
+    assert LogFilter(rpm_dot_min=0).mask(log).tolist() == [False, True, True, True]
+    assert LogFilter(tps_above=0).mask(log).tolist() == [True, False, True, True]
+    assert LogFilter(tps_above=4).mask(log).tolist() == [True, False, True, False]
+    rep = LogFilter(rpm_dot_min=0, tps_above=0).report(make_log(RPM=[2000]))
+    assert any("rpm/s" in r and "пропущено" in r for r in rep)

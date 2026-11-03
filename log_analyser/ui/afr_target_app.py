@@ -18,8 +18,8 @@ from .widgets import init_styles
 DEBOUNCE_MS = 50
 
 # Defaults of the AFR Target tab
-RPM_DEFAULT = dict(start=500, stop=7000, n=16, gamma=1.5)
-KPA_DEFAULT = dict(start=20, stop=100, n=16, gamma=1.5)
+RPM_DEFAULT = dict(start=600, stop=6000, n=16, gamma=1.5)
+KPA_DEFAULT = dict(start=30, stop=100, n=16, gamma=1.5)
 FILL_DEFAULT = AfrFill(lean=15.0, rich=12.5, kpa_lean=0, kpa_rich=95, bias=1.0)
 
 

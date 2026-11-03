@@ -30,6 +30,8 @@ class LogFilter:
     accel_tail: int = 10                     # ... and this many rows after it
     afr_min: float | None = 10.0             # wideband out of range / rails
     afr_max: float | None = 19.5
+    rpm_dot_min: float | None = None         # rpm/s >= value (0: no falling RPM / engine braking)
+    tps_above: float | None = None           # TPS > value, % (0: throttle not closed)
 
     def _checks(self, log: Log) -> list[tuple[str, str, np.ndarray | None]]:
         """``(description, column, mask_or_None_if_column_missing)`` for every enabled check."""
@@ -67,6 +69,13 @@ class LogFilter:
             lo = -np.inf if self.afr_min is None else self.afr_min
             hi = np.inf if self.afr_max is None else self.afr_max
             out.append((f"AFR в [{lo:g}, {hi:g}]", "AFR", None if v is None else (v >= lo) & (v <= hi)))
+        if self.rpm_dot_min is not None:
+            v = col("rpm/s")
+            out.append((f"rpm/s ≥ {self.rpm_dot_min:g}", "rpm/s",
+                        None if v is None else v >= self.rpm_dot_min))
+        if self.tps_above is not None:
+            v = col("TPS")
+            out.append((f"TPS > {self.tps_above:g}", "TPS", None if v is None else v > self.tps_above))
         return out
 
     def mask(self, log: Log) -> np.ndarray:
@@ -94,7 +103,8 @@ class LogFilter:
 class CorrGrid:
     """Per-cell correction statistics over ``x`` (columns) and ``y`` (rows).
 
-    ``values`` is NaN where a cell has fewer than ``min_points`` points.
+    ``values`` is NaN where a cell has fewer than ``min_points`` points; ``iqr`` is the
+    interquartile range (75th − 25th percentile) of the cell's points, NaN likewise.
     """
 
     x: Axis
@@ -105,6 +115,7 @@ class CorrGrid:
     min_points: int
     overlap: float
     meta: dict = field(default_factory=dict)
+    iqr: np.ndarray | None = None
 
     @property
     def valid(self) -> np.ndarray:
@@ -131,8 +142,9 @@ def corr_grid(log: Log, x_axis: Axis, y_axis: Axis, *, column: str = "CORR",
               x: str = "RPM", y: str = "MAP") -> CorrGrid:
     """Aggregate ``column`` of ``log`` per cell of the ``x_axis`` × ``y_axis`` grid.
 
-    Cell bounds are the same as in :func:`cell.cell_points` (``overlap`` 0.5 tiles the
-    plane without overlap; larger values let neighbouring cells share points).
+    Cell bounds are the same as in :func:`cell.cell_points`: ``overlap`` is the capture
+    radius in grid steps along each axis (0.5 tiles the plane without overlap, 1 reaches
+    the neighbouring node, 2 the second one); all points in the window count equally.
     """
     if stat not in STATS:
         raise LogError(f"stat must be one of {STATS}, got {stat!r}")
@@ -153,6 +165,7 @@ def corr_grid(log: Log, x_axis: Axis, y_axis: Axis, *, column: str = "CORR",
         y_masks.append((ys >= lo) & (ys <= hi))
 
     out = np.full((len(y_axis), len(x_axis)), np.nan)
+    iqr = np.full((len(y_axis), len(x_axis)), np.nan)
     counts = np.zeros((len(y_axis), len(x_axis)), dtype=np.int64)
     func = np.median if stat == "median" else np.mean
     for i, ym in enumerate(y_masks):
@@ -164,7 +177,9 @@ def corr_grid(log: Log, x_axis: Axis, y_axis: Axis, *, column: str = "CORR",
             counts[i, j] = sel.size
             if sel.size >= min_points:
                 out[i, j] = float(func(sel))
-    return CorrGrid(x_axis, y_axis, out, counts, stat, min_points, overlap)
+                q25, q75 = np.percentile(sel, [25, 75])
+                iqr[i, j] = float(q75 - q25)
+    return CorrGrid(x_axis, y_axis, out, counts, stat, min_points, overlap, iqr=iqr)
 
 
 def find_ve_column(log: Log) -> str | None:

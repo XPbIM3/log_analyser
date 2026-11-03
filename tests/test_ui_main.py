@@ -106,3 +106,44 @@ def test_ve_new_without_tune_fills_zero(win):
     assert np.all(ve.values[~g.valid] == 0) and np.all(ve.values[g.valid] > 0)
     assert "instate" not in str(win.corr.export_btn.state())
     assert "disabled" not in win.corr.export_btn.state()
+
+
+def test_cell_panel_and_spread(win):
+    msl = sorted(str(p) for p in LEGACY.glob("*.msl"))
+    if not msl:
+        pytest.skip("no sample logs")
+    win.logs.load_logs(msl)
+    wait_loaded(win)
+    c = win.corr
+    c.refresh()
+    g = c.grid_result
+    i, j = (int(v) for v in np.unravel_index(np.argmax(g.counts), g.counts.shape))
+    c.view.selected = (i, j)
+    c._cell_clicked(i, j)
+    p = c.cell_panel
+    assert len(p.points) == g.counts[i, j]       # same cell bounds as the aggregation
+    assert "медиана" in p.stats.get("1.0", "end")
+    assert p.x_col.get() == "rpm/s"
+    p.x_col.set("TPS")
+    p._draw()
+
+    c.mode.set("spread")
+    c.refresh()                                  # selection kept -> panel refreshed
+    assert c.cell_panel.points is not None
+    assert np.isfinite(g.iqr[g.valid]).all()
+
+    c.f_rpmdot_on.set(False)
+    c.f_tps_on.set(False)
+    c.refresh()
+    n_before = int(c.grid_result.counts.sum())
+    c.f_rpmdot_on.set(True)
+    c.f_tps_on.set(True)
+    c.f_tps.set("2")
+    c.refresh()
+    assert int(c.grid_result.counts.sum()) < n_before
+    assert "TPS > 2" in c.status.cget("text") and "rpm/s ≥ 0" in c.status.cget("text")
+
+    c.view.selected = None
+    c.min_points.set("100000")                    # nothing valid any more
+    c.refresh()
+    assert c.cell_panel.points is None

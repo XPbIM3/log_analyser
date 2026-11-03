@@ -52,3 +52,18 @@ def test_plot_cell(tmp_path, log):
     assert "3 points" in ax.get_title()
     assert ax.get_xlabel() == "RPM [rpm]"
     assert ax.get_ylabel() == "CORR"
+
+
+def test_radius_follows_nonlinear_axis():
+    x = RpmAxis([1000, 1200, 1600, 2400, 4000])     # steps 200, 400, 800, 1600
+    y = KpaAxis([20, 30, 40])
+    # radius <= 1: multiples of the adjacent step (as before)
+    assert cell_bounds(x, y, 1600, 30, overlap=0.5)[:2] == (1400, 2000)
+    assert cell_bounds(x, y, 1600, 30, overlap=1.0)[:2] == (1200, 2400)
+    # radius 2 reaches exactly the 2nd neighbours, 1.5 the middle of the 2nd step
+    assert cell_bounds(x, y, 1600, 30, overlap=2.0)[:2] == (1000, 4000)
+    assert cell_bounds(x, y, 1600, 30, overlap=1.5)[:2] == (1100, 3200)
+    # beyond the ends the end step is continued
+    assert cell_bounds(x, y, 1000, 30, overlap=2.0)[:2] == (600, 1600)
+    assert cell_bounds(x, y, 4000, 30, overlap=2.0)[:2] == (1600, 7200)
+    assert cell_bounds(x, y, 1200, 20, overlap=3.0) == (600, 4000, -10, 50)
