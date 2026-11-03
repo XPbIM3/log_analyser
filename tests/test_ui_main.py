@@ -12,7 +12,7 @@ if os.name != "nt" and not os.environ.get("DISPLAY"):
 
 from log_analyser.ui.app import MainWindow  # noqa: E402
 
-LEGACY = Path(__file__).resolve().parent.parent / "legacy" / "input"
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
 @pytest.fixture
@@ -43,10 +43,10 @@ def test_no_logs_message(win):
 
 
 def test_logs_tune_and_correction(win):
-    msl = sorted(str(p) for p in LEGACY.glob("*.msl"))
+    msl = sorted(str(p) for p in FIXTURES.glob("*.msl"))
     if not msl:
         pytest.skip("no sample logs")
-    win.logs.load_tune(str(LEGACY / "CurrentTune.msq"))
+    win.logs.load_tune(str(FIXTURES / "CurrentTune.msq"))
     win.logs.load_logs(msl)
     wait_loaded(win)
     assert len(win.session.logs) == len(msl)
@@ -94,7 +94,7 @@ def test_duration_text():
 
 
 def test_ve_new_without_tune_fills_zero(win):
-    msl = sorted(str(p) for p in LEGACY.glob("*.msl"))
+    msl = sorted(str(p) for p in FIXTURES.glob("*.msl"))
     if not msl:
         pytest.skip("no sample logs")
     win.logs.load_logs(msl)
@@ -109,7 +109,7 @@ def test_ve_new_without_tune_fills_zero(win):
 
 
 def test_cell_panel_and_spread(win):
-    msl = sorted(str(p) for p in LEGACY.glob("*.msl"))
+    msl = sorted(str(p) for p in FIXTURES.glob("*.msl"))
     if not msl:
         pytest.skip("no sample logs")
     win.logs.load_logs(msl)

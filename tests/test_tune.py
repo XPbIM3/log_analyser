@@ -5,7 +5,7 @@ import pytest
 
 from log_analyser import KpaAxis, RpmAxis, TableKind, TableSpec, Tune, TuneError
 
-REAL_TUNE = Path(__file__).resolve().parent.parent / "legacy" / "input" / "CurrentTune.msq"
+REAL_TUNE = Path(__file__).resolve().parent / "fixtures" / "CurrentTune.msq"
 
 
 def _const(name, rows, cols, values, units="", digits=0):
@@ -117,7 +117,7 @@ def test_size_mismatch():
         tune.constant("t").array()
 
 
-@pytest.mark.skipif(not REAL_TUNE.exists(), reason="legacy tune not present")
+@pytest.mark.skipif(not REAL_TUNE.exists(), reason="tune fixture not present")
 def test_real_tune():
     tune = Tune.load(REAL_TUNE)
     # advTable2 is unused in this tune: its mapBins2 axis is all zeros
@@ -129,7 +129,7 @@ def test_real_tune():
     for t in tables.values():
         assert t.is_default_size
     ve = tables["veTable"]
-    assert list(ve.x)[:3] == [400, 700, 1100]
-    assert list(ve.y)[:3] == [28, 38, 48]
-    assert ve.values[0, :4].tolist() == [56, 56, 60, 68]
+    assert list(ve.x)[:3] == [600, 700, 900]
+    assert list(ve.y)[:3] == [30, 32, 34]
+    assert ve.values[0, :4].tolist() == [47, 47, 48, 49]
     assert tables["afrTable"].values[0, 0] == pytest.approx(14.5)

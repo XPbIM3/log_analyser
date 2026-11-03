@@ -7,7 +7,7 @@ import pytest
 from log_analyser import (KpaAxis, RpmAxis, Table, TableFileError, TableKind,
                           export_table, read_table, table_to_string)
 
-LEGACY_OUT = Path(__file__).resolve().parent.parent / "legacy" / "output"
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
 @pytest.fixture
@@ -66,8 +66,10 @@ def test_read_errors(tmp_path):
         read_table(tmp_path / "nope.table", TableKind.VE)
 
 
-@pytest.mark.skipif(not (LEGACY_OUT / "AFR_EXPORT.table").exists(), reason="legacy output not present")
-@pytest.mark.parametrize("name, kind", [("AFR_EXPORT.table", TableKind.AFR), ("VE_EXPORT_w.table", TableKind.VE)])
-def test_reads_legacy_exports(name, kind):
-    t = read_table(LEGACY_OUT / name, kind)
+@pytest.mark.parametrize("name, kind", [("afr.table", TableKind.AFR), ("ve.table", TableKind.VE)])
+def test_reads_exports(name, kind):
+    p = FIXTURES / name
+    if not p.exists():
+        pytest.skip(f"fixture {name} not present")
+    t = read_table(p, kind)
     assert t.is_default_size

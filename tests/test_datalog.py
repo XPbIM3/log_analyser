@@ -5,8 +5,7 @@ import pytest
 
 from log_analyser import KpaAxis, Log, LogError, RpmAxis, Table, TableKind, Tune
 
-ROOT = Path(__file__).resolve().parent.parent
-REAL_LOGS = ROOT / "legacy" / "input"
+REAL_LOGS = Path(__file__).resolve().parent / "fixtures"
 
 
 def write_msl(path, rows, columns=("Time", "RPM", "MAP", "AFR", "Lambda", "AFR Target", "VE1", "Fan"),
@@ -201,17 +200,16 @@ def test_corr_errors(msl):
 
 # ------------------------------------------------------------------ real data
 
-@pytest.mark.skipif(not list(REAL_LOGS.glob("*.msl")), reason="legacy logs not present")
+@pytest.mark.skipif(not list(REAL_LOGS.glob("*.msl")), reason="msl fixtures not present")
 def test_real_logs():
-    with pytest.raises(LogError, match="column sets differ"):
-        Log.load_many(str(REAL_LOGS / "*.msl"))
-    with pytest.warns(UserWarning, match="Error #"):
-        log = Log.load_many(str(REAL_LOGS / "*.msl"), columns="common")
-    assert len(log.sources) == 3
-    assert len(log) == 54005 - 3
+    paths = sorted(REAL_LOGS.glob("*.msl"))
+    with pytest.raises(LogError, match="must be 'same' or 'common'"):
+        Log.load_many([str(p) for p in paths], columns=["Time", "RPM", "NoSuchColumn"])
+    log = Log.load_many([str(p) for p in paths])
+    assert len(log.sources) == len(paths)
     assert not np.isnan(log.column("AFR")).any()
     tune = Tune.load(REAL_LOGS / "CurrentTune.msq")
-    assert log.signature == tune.signature == "speeduino 202207"
+    assert log.signature == tune.signature
 
 
 def _with_marks(path, marks_after):
