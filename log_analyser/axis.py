@@ -159,6 +159,19 @@ class Axis:
         """Distances between neighbouring breakpoints (``len(self) - 1`` values)."""
         return np.diff(self._values)
 
+    def at(self, t: float) -> float:
+        """Value at fractional node index ``t``: linear within a step; beyond the ends
+        the first/last step is continued."""
+        v = self._values.astype(np.float64)
+        k = int(np.clip(np.floor(t), 0, v.size - 2))
+        return float(v[k] + (t - k) * (v[k + 1] - v[k]))
+
+    def position(self, value: float) -> float:
+        """Inverse of :meth:`at`: fractional node index of ``value``."""
+        v = self._values.astype(np.float64)
+        k = int(np.clip(np.searchsorted(v, value, side="right") - 1, 0, v.size - 2))
+        return float(k + (value - v[k]) / (v[k + 1] - v[k]))
+
     def __len__(self) -> int:
         return self._values.size
 

@@ -1,8 +1,10 @@
 """Generating an AFR target table from a few macro parameters.
 
-AFR is constant along RPM and changes along load (kPa): a lean plateau up to
-``kpa_lean``, a rich plateau from ``kpa_rich``, and a smooth S-shaped transition
-(smootherstep) between them.
+Two S-shaped transitions (smootherstep) from ``lean`` to ``rich``: along load —
+lean up to ``kpa_lean``, rich from ``kpa_rich`` — and, optionally, along RPM —
+lean up to ``rpm_lean``, rich from ``rpm_rich``. They are combined with max:
+a cell is as rich as the richer of the two ("high load OR high RPM").
+Without the RPM transition the table is constant along RPM.
 """
 from __future__ import annotations
 
@@ -21,10 +23,9 @@ class AfrFillError(ValueError):
 
 @dataclass(frozen=True)
 class AfrFill:
-    """Parameters of the AFR(kPa) curve.
+    """Parameters of the AFR(RPM, kPa) map.
 
-    ``bias`` reshapes the transition: ``t -> t ** bias``; ``bias > 1`` delays the
-    enrichment towards ``kpa_rich``, ``bias < 1`` brings it closer to ``kpa_lean``.
+    ``rpm_lean``/``rpm_rich`` are both ``None`` (no RPM enrichment) or both set.
     ``step`` is the rounding quantum of the resulting values (0 disables rounding).
     """
 
@@ -32,11 +33,17 @@ class AfrFill:
     rich: float = 12.5
     kpa_lean: float = 55
     kpa_rich: float = 95
-    bias: float = 1.0
+    rpm_lean: float | None = None
+    rpm_rich: float | None = None
     step: float = 0.1
 
     def __post_init__(self) -> None:
-        for name in ("lean", "rich", "kpa_lean", "kpa_rich", "bias", "step"):
+        names = ["lean", "rich", "kpa_lean", "kpa_rich", "step"]
+        if (self.rpm_lean is None) != (self.rpm_rich is None):
+            raise AfrFillError("rpm_lean and rpm_rich must be both set or both None")
+        if self.rpm_lean is not None:
+            names += ["rpm_lean", "rpm_rich"]
+        for name in names:
             v = getattr(self, name)
             if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
                 raise AfrFillError(f"{name} must be a finite number, got {v!r}")
@@ -46,8 +53,8 @@ class AfrFill:
             raise AfrFillError(f"rich ({self.rich}) must be <= lean ({self.lean})")
         if self.kpa_lean >= self.kpa_rich:
             raise AfrFillError(f"kpa_lean ({self.kpa_lean}) must be < kpa_rich ({self.kpa_rich})")
-        if self.bias <= 0:
-            raise AfrFillError(f"bias must be > 0, got {self.bias}")
+        if self.rpm_lean is not None and self.rpm_lean >= self.rpm_rich:
+            raise AfrFillError(f"rpm_lean ({self.rpm_lean}) must be < rpm_rich ({self.rpm_rich})")
         if self.step < 0:
             raise AfrFillError(f"step must be >= 0, got {self.step}")
 
@@ -58,21 +65,37 @@ def smootherstep(t: np.ndarray) -> np.ndarray:
     return t * t * t * (t * (6.0 * t - 15.0) + 10.0)
 
 
+def _transition(v, lo: float, hi: float) -> np.ndarray:
+    """0 up to ``lo``, 1 from ``hi``, smootherstep between."""
+    return smootherstep((np.asarray(v, dtype=np.float64) - lo) / (hi - lo))
+
+
+def _round(afr: np.ndarray, step: float) -> np.ndarray:
+    if step <= 0:
+        return afr
+    afr = np.round(afr / step) * step
+    return np.round(afr, max(0, -math.floor(math.log10(step)) + 1))
+
+
+def afr_map(rpm, kpa, fill: AfrFill, rounded: bool = True) -> np.ndarray:
+    """Target AFR at (``rpm``, ``kpa``) (broadcast together); rounded to ``fill.step`` if ``rounded``."""
+    rpm, kpa = np.broadcast_arrays(np.asarray(rpm, dtype=np.float64), np.asarray(kpa, dtype=np.float64))
+    s = _transition(kpa, fill.kpa_lean, fill.kpa_rich)
+    if fill.rpm_lean is not None:
+        s = np.maximum(s, _transition(rpm, fill.rpm_lean, fill.rpm_rich))
+    afr = fill.lean - (fill.lean - fill.rich) * s
+    return _round(afr, fill.step) if rounded else afr
+
+
 def afr_curve(kpa, fill: AfrFill, rounded: bool = True) -> np.ndarray:
-    """Target AFR at load ``kpa`` (scalar or array); rounded to ``fill.step`` if ``rounded``."""
+    """Target AFR along load only (the RPM transition ignored)."""
     k = np.asarray(kpa, dtype=np.float64)
-    t = np.clip((k - fill.kpa_lean) / (fill.kpa_rich - fill.kpa_lean), 0.0, 1.0) ** fill.bias
-    afr = fill.lean - (fill.lean - fill.rich) * smootherstep(t)
-    if rounded and fill.step > 0:
-        afr = np.round(afr / fill.step) * fill.step
-        decimals = max(0, -math.floor(math.log10(fill.step)) + 1)
-        afr = np.round(afr, decimals)
-    return afr
+    afr = fill.lean - (fill.lean - fill.rich) * _transition(k, fill.kpa_lean, fill.kpa_rich)
+    return _round(afr, fill.step) if rounded else afr
 
 
 def afr_target_table(rpm: RpmAxis, kpa: KpaAxis, fill: AfrFill,
                      caption: str = "AFR Target Table") -> Table:
-    """AFR target table over ``rpm`` (columns) and ``kpa`` (rows), constant along RPM."""
-    col = afr_curve(kpa.values, fill)
-    values = np.repeat(col[:, None], len(rpm), axis=1)
+    """AFR target table over ``rpm`` (columns) and ``kpa`` (rows)."""
+    values = afr_map(rpm.values[None, :], kpa.values[:, None], fill)
     return Table(TableKind.AFR, rpm, kpa, values, caption=caption)

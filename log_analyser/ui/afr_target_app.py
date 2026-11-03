@@ -1,4 +1,8 @@
-"""Window for creating an AFR target table: two axis controls + AFR fill, live preview."""
+"""Window for creating an AFR target table: two axis controls + AFR levels, live preview.
+
+The lean → rich transition is set by two-handle sliders next to the table: on the
+left along load (kPa), at the bottom along RPM (optional, combined with max).
+"""
 from __future__ import annotations
 
 import tkinter as tk
@@ -9,10 +13,10 @@ from ..afr_target import AfrFill, afr_target_table
 from ..axis import KpaAxis, RpmAxis
 from ..table import Table, TableKind
 from ..table_file import export_table, read_table
-from .afr_curve_plot import AfrCurvePlot
 from .afr_fill_control import AfrFillControl
 from .axis_control import AxisControl
-from .table_grid import TableGrid
+from .range_slider import AxisRangeSlider
+from .table_grid import LABEL_H, LABEL_W, TITLE_H, TableGrid
 from .widgets import init_styles
 
 DEBOUNCE_MS = 50
@@ -20,7 +24,11 @@ DEBOUNCE_MS = 50
 # Defaults of the AFR Target tab
 RPM_DEFAULT = dict(start=600, stop=6000, n=16, gamma=1.5)
 KPA_DEFAULT = dict(start=30, stop=100, n=16, gamma=1.5)
-FILL_DEFAULT = AfrFill(lean=15.0, rich=12.5, kpa_lean=0, kpa_rich=95, bias=1.0)
+FILL_DEFAULT = AfrFill(lean=15.0, rich=12.5, kpa_lean=30, kpa_rich=95)
+RPM_RANGE_DEFAULT = (0.7, 1.0)     # RPM transition when first enabled, as fractions of the axis span
+KPA_SLIDER_Q = 1
+RPM_SLIDER_Q = 50
+SLIDER_OVERRUN = 48                # px of slider track beyond the table on each side
 
 
 class AfrTargetApp(ttk.Frame):
@@ -36,16 +44,37 @@ class AfrTargetApp(ttk.Frame):
                                range_max=12000, on_change=self.schedule_update)
         self.kpa = AxisControl(left, KpaAxis, "Ось нагрузки, kPa", **KPA_DEFAULT,
                                range_max=300, on_change=self.schedule_update)
-        self.fill = AfrFillControl(left, FILL_DEFAULT, kpa_max=300, on_change=self.schedule_update)
+        self.fill = AfrFillControl(left, FILL_DEFAULT, on_change=self.schedule_update)
         for w in (self.rpm, self.kpa, self.fill):
             w.pack(fill=tk.X, pady=(0, 8))
 
-        right = ttk.PanedWindow(self, orient=tk.VERTICAL)
+        # right: table with a load slider on the left and an RPM slider below; the empty
+        # strips around the table give the sliders room beyond the axis range (0 … 2×max)
+        right = ttk.Frame(self)
         right.grid(row=0, column=1, sticky="nsew")
+        ttk.Frame(right, height=SLIDER_OVERRUN).grid(row=0, column=1)
         self.grid_view = TableGrid(right, cmap="RdYlBu", vmin=10.5, vmax=16.0)
-        self.curve = AfrCurvePlot(right)
-        right.add(self.grid_view, weight=3)
-        right.add(self.curve, weight=2)
+        self.grid_view.grid(row=1, column=1, sticky="nsew")
+        ttk.Frame(right, height=SLIDER_OVERRUN).grid(row=2, column=1)
+        ttk.Frame(right, width=SLIDER_OVERRUN).grid(row=1, column=2)
+        self.kpa_slider = AxisRangeSlider(
+            right, self.kpa.axis, FILL_DEFAULT.kpa_lean, FILL_DEFAULT.kpa_rich, orient="vertical",
+            pad_lo=SLIDER_OVERRUN + LABEL_H + 2, pad_hi=SLIDER_OVERRUN + TITLE_H,
+            quantum=KPA_SLIDER_Q, on_change=self._ranges_changed)
+        self.kpa_slider.grid(row=0, column=0, rowspan=3, sticky="ns")
+        rpm = self.rpm.axis
+        span = rpm.values[-1] - rpm.values[0]
+        self.rpm_slider = AxisRangeSlider(
+            right, rpm, *(rpm.values[0] + f * span for f in RPM_RANGE_DEFAULT), orient="horizontal",
+            pad_lo=LABEL_W, pad_hi=SLIDER_OVERRUN + 2,
+            quantum=RPM_SLIDER_Q, on_change=self._ranges_changed)
+        self.rpm_slider.grid(row=3, column=1, columnspan=2, sticky="ew")
+        self.rpm_on = tk.BooleanVar(value=FILL_DEFAULT.rpm_lean is not None)
+        ttk.Checkbutton(right, text="RPM", variable=self.rpm_on,
+                        command=self._ranges_changed).grid(row=3, column=0)
+        self.rpm_slider.set_enabled(self.rpm_on.get())
+        right.columnconfigure(1, weight=1)
+        right.rowconfigure(1, weight=1)
 
         bar = ttk.Frame(self)
         bar.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(8, 0))
@@ -59,6 +88,13 @@ class AfrTargetApp(ttk.Frame):
         self.table: Table = self._build()
         self.update_now()
 
+    def _ranges_changed(self) -> None:
+        on = self.rpm_on.get()
+        self.rpm_slider.set_enabled(on)
+        self.fill.set_ranges(kpa_lean=self.kpa_slider.lo, kpa_rich=self.kpa_slider.hi,
+                             rpm_lean=self.rpm_slider.lo if on else None,
+                             rpm_rich=self.rpm_slider.hi if on else None)
+
     def _build(self) -> Table:
         return afr_target_table(self.rpm.axis, self.kpa.axis, self.fill.fill)
 
@@ -71,7 +107,8 @@ class AfrTargetApp(ttk.Frame):
         self._pending = None
         self.table = self._build()
         self.grid_view.show(self.table)
-        self.curve.show(self.kpa.axis, self.fill.fill)
+        self.kpa_slider.set_axis(self.kpa.axis)
+        self.rpm_slider.set_axis(self.rpm.axis)
         self.status.configure(text=f"{self.table.shape[0]}×{self.table.shape[1]}, сгенерирована")
 
     def export(self) -> None:

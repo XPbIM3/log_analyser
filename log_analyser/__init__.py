@@ -1,4 +1,4 @@
-from .afr_target import AfrFill, AfrFillError, afr_curve, afr_target_table, smootherstep
+from .afr_target import AfrFill, AfrFillError, afr_curve, afr_map, afr_target_table, smootherstep
 from .axis import Axis, AxisError, KpaAxis, RpmAxis
 from .cell import cell_bounds, cell_points, plot_cell
 from .corr_table import (STATS, VE_COLUMNS, CorrGrid, LogFilter, VeResult, corr_grid,
@@ -9,7 +9,7 @@ from .table_file import TableFileError, export_table, read_table, table_to_strin
 from .tune import SPEEDUINO_TABLES, Constant, TableSpec, Tune, TuneError
 
 __all__ = [
-    "AfrFill", "AfrFillError", "afr_curve", "afr_target_table", "smootherstep",
+    "AfrFill", "AfrFillError", "afr_curve", "afr_map", "afr_target_table", "smootherstep",
     "Axis", "AxisError", "KpaAxis", "RpmAxis",
     "cell_bounds", "cell_points", "plot_cell",
     "STATS", "VE_COLUMNS", "CorrGrid", "LogFilter", "VeResult", "corr_grid",

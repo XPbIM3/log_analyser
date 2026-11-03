@@ -13,6 +13,9 @@ from ..axis import Axis
 from ..table import Table
 
 MISSING_FILL = "#e6e6e6"
+LABEL_W = 44      # y labels on the left
+LABEL_H = 20      # x labels at the bottom
+TITLE_H = 20      # title on top
 
 
 class TableGrid(ttk.Frame):
@@ -75,7 +78,7 @@ class TableGrid(ttk.Frame):
             return
 
         rows, cols = len(y), len(x)
-        label_w, label_h, title_h = 44, 20, 20
+        label_w, label_h, title_h = LABEL_W, LABEL_H, TITLE_H
         cw = (w - label_w - 2) / cols
         ch = (h - label_h - title_h - 2) / rows
         self._geom = (label_w, title_h, cw, ch, rows, cols)

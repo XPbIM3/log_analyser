@@ -1,6 +1,7 @@
-"""Macro-control for the AFR(kPa) fill curve."""
+"""Macro-control for the AFR levels; the transition ranges come from the sliders by the table."""
 from __future__ import annotations
 
+import dataclasses
 import tkinter as tk
 from tkinter import ttk
 from typing import Callable
@@ -10,25 +11,29 @@ from .widgets import ParamRow
 
 
 class AfrFillControl(ttk.LabelFrame):
-    """Edits :class:`AfrFill`; ``fill`` always holds the last valid value."""
+    """Edits ``lean``/``rich`` of :class:`AfrFill`; ranges are set by :meth:`set_ranges`.
 
-    def __init__(self, parent: tk.Misc, fill: AfrFill = AfrFill(), *, kpa_max: int = 250,
+    ``fill`` always holds the last valid value.
+    """
+
+    def __init__(self, parent: tk.Misc, fill: AfrFill = AfrFill(), *,
                  on_change: Callable[[], None] = lambda: None) -> None:
-        super().__init__(parent, text="AFR вдоль нагрузки", padding=8)
+        super().__init__(parent, text="AFR", padding=8)
         self._on_change = on_change
         self.fill = fill
+        self._ranges = dict(kpa_lean=fill.kpa_lean, kpa_rich=fill.kpa_rich,
+                            rpm_lean=fill.rpm_lean, rpm_rich=fill.rpm_rich)
         self._rows = {
             "lean": ParamRow(self, 0, "AFR lean (ХХ/круиз)", fill.lean, 10.0, 18.0, 0.1, 1, self._recompute),
-            "kpa_lean": ParamRow(self, 1, "lean до, kPa", fill.kpa_lean, 0, kpa_max, 1, 0, self._recompute),
-            "rich": ParamRow(self, 2, "AFR rich (нагрузка)", fill.rich, 9.0, 16.0, 0.1, 1, self._recompute),
-            "kpa_rich": ParamRow(self, 3, "rich от, kPa", fill.kpa_rich, 0, kpa_max, 1, 0, self._recompute),
-            "bias": ParamRow(self, 4, "сдвиг перехода", fill.bias, 0.3, 3.0, 0.05, 2, self._recompute),
+            "rich": ParamRow(self, 1, "AFR rich (нагрузка)", fill.rich, 9.0, 16.0, 0.1, 1, self._recompute),
         }
-        ttk.Label(self, foreground="#666666", wraplength=320,
-                  text="сдвиг >1: обогащение позже, <1: раньше").grid(
-            row=5, column=0, columnspan=3, sticky="w", pady=(4, 0))
         self._error = ttk.Label(self, foreground="#b00000", wraplength=320)
-        self._error.grid(row=6, column=0, columnspan=3, sticky="w")
+        self._error.grid(row=2, column=0, columnspan=3, sticky="w")
+
+    def set_ranges(self, *, kpa_lean: float, kpa_rich: float,
+                   rpm_lean: float | None, rpm_rich: float | None) -> None:
+        self._ranges = dict(kpa_lean=kpa_lean, kpa_rich=kpa_rich, rpm_lean=rpm_lean, rpm_rich=rpm_rich)
+        self._recompute()
 
     def _recompute(self) -> None:
         parsed: dict[str, float] = {}
@@ -42,7 +47,7 @@ class AfrFillControl(ttk.LabelFrame):
             self._error.configure(text="Введите число")
             return
         try:
-            fill = AfrFill(step=self.fill.step, **parsed)
+            fill = dataclasses.replace(self.fill, **parsed, **self._ranges)
         except ValueError as e:  # AfrFillError
             self._error.configure(text=str(e))
             return
