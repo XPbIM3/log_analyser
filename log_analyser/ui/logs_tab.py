@@ -9,6 +9,7 @@ from tkinter import filedialog, messagebox, ttk
 import numpy as np
 
 from ..datalog import DEFAULT_DELAY_MS, Log
+from ..shift_scan import ShiftEstimate, recommend, scan_file
 from ..tune import Tune
 from .session import Session
 
@@ -67,6 +68,12 @@ class LogsTab(ttk.Frame):
         spin.bind("<Return>", self.schedule_reload)
         spin.bind("<FocusOut>", self.schedule_reload)
         spin.pack(side=tk.LEFT, padx=(6, 12))
+        self._scan_btn = ttk.Button(shift_bar, text="Подобрать сдвиг", command=self.detect_shift)
+        self._scan_btn.pack(side=tk.LEFT)
+        self._scans: dict[str, Future] = {}
+        self._shift_dialog: tk.Toplevel | None = None
+        self._shift_note: ttk.Label | None = None
+        self._shift_rec: float | None = None
         ttk.Label(shift_bar, foreground="#555555",
                   text=f"рекомендация: {DEFAULT_DELAY_MS:.0f} мс (замер на протягах ~15 Гц) — "
                        "ряды = сдвиг ÷ герцовка файла").pack(side=tk.LEFT)
@@ -159,6 +166,79 @@ class LogsTab(ttk.Frame):
             self._pending[p] = self._pool.submit(Log.load, p, shift_ms=value)
         if self._pending:
             self.after(POLL_MS, self._poll)
+
+    # ------------------------------------------------------------- shift detect
+
+    def detect_shift(self) -> None:
+        """Scan every loaded log for the mixture delay (in a background pool)."""
+        if not self.session.logs:
+            messagebox.showinfo("Подобрать сдвиг", "Сначала загрузите логи.", parent=self)
+            return
+        self._scan_btn.configure(state="disabled")
+        self._scans = {p: self._pool.submit(scan_file, p) for p in self.session.logs}
+        self.after(POLL_MS, self._poll_scans)
+
+    def _poll_scans(self) -> None:
+        if not all(f.done() for f in self._scans.values()):
+            self.after(POLL_MS, self._poll_scans)
+            return
+        results, errors = [], []
+        for p, fut in self._scans.items():
+            try:
+                results.append((os.path.basename(p), fut.result()))
+            except Exception as e:  # noqa: BLE001 - show any scan error in the dialog
+                errors.append((os.path.basename(p), str(e)))
+        self._scans.clear()
+        self._scan_btn.configure(state="normal")
+        self._show_shift_dialog(results, errors)
+
+    def _show_shift_dialog(self, results: list[tuple[str, ShiftEstimate]],
+                           errors: list[tuple[str, str]]) -> None:
+        rec, note = recommend([e for _, e in results])
+        self._shift_rec = rec
+        win = tk.Toplevel(self)
+        win.title("Подбор сдвига смеси")
+        win.transient(self)
+        win.grab_set()
+        self._shift_dialog = win
+        cols = ("file", "hz", "k", "delay", "conf")
+        tree = ttk.Treeview(win, columns=cols, show="headings",
+                            height=min(8, max(3, len(results) + len(errors))))
+        for cid, text, width, anchor in (("file", "Файл", 230, "w"), ("hz", "Гц", 55, "e"),
+                                         ("k", "Сдвиг, рядов", 100, "e"),
+                                         ("delay", "Задержка, мс", 105, "e"),
+                                         ("conf", "Оценка", 330, "w")):
+            tree.heading(cid, text=text)
+            tree.column(cid, width=width, anchor=anchor)
+        tree.pack(fill=tk.BOTH, expand=True, padx=8, pady=(8, 4))
+        for name, e in results:
+            if e.confidence == "none":
+                tree.insert("", tk.END, values=(name, "—", "—", "—", e.reason))
+                continue
+            conf = "уверенно" if e.confidence == "confident" else "слабо"
+            text = conf + (f"; {e.reason}" if e.reason else "") + f" · {e.section}"
+            tree.insert("", tk.END, values=(name, f"{e.rate_hz:.1f}", e.best_level,
+                                            f"{e.delay_ms:.0f}", text))
+        for name, err in errors:
+            tree.insert("", tk.END, values=(name, "", "", "", f"ошибка: {err}"))
+        self._shift_note = ttk.Label(win, wraplength=800, justify=tk.LEFT, foreground="#555555",
+                                     text=(f"Рекомендация: сдвиг {rec:.0f} мс ({note})." if rec is not None
+                                           else note))
+        self._shift_note.pack(fill=tk.X, padx=8)
+        bar = ttk.Frame(win)
+        bar.pack(fill=tk.X, padx=8, pady=(4, 8))
+        apply_btn = ttk.Button(bar, text="Применить", command=self._apply_shift,
+                               state="normal" if rec is not None else "disabled")
+        apply_btn.pack(side=tk.LEFT)
+        ttk.Button(bar, text="Закрыть", command=win.destroy).pack(side=tk.LEFT, padx=6)
+
+    def _apply_shift(self) -> None:
+        if self._shift_rec is not None:
+            self.shift_ms.set(round(self._shift_rec / 10.0) * 10.0)   # keep the spinbox step
+            self.reload_all()
+        if self._shift_dialog is not None:
+            self._shift_dialog.destroy()
+            self._shift_dialog = None
 
     def _poll(self) -> None:
         for p, fut in list(self._pending.items()):

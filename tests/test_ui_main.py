@@ -92,6 +92,30 @@ def test_shift_ms_control(win):
     assert all(rows_big[i] < rows_default[i] for i in items)
 
 
+def test_detect_shift_button(win, monkeypatch):
+    import log_analyser.ui.logs_tab as logs_tab
+    from log_analyser.shift_scan import ShiftEstimate
+    msl = sorted(str(p) for p in FIXTURES.glob("*.msl"))
+    if not msl:
+        pytest.skip("no sample logs")
+    win.logs.load_logs(msl)
+    wait_loaded(win)
+    fake = ShiftEstimate(rate_hz=15.6, best_level=4, best_diff=4, best_err=4,
+                         delay_ms=500.0, confidence="confident")
+    monkeypatch.setattr(logs_tab, "scan_file", lambda p: fake)
+    win.logs.detect_shift()
+    end = time.time() + 5
+    while time.time() < end and win.logs._shift_dialog is None:
+        win.update()
+        time.sleep(0.02)
+    assert win.logs._shift_dialog is not None
+    assert "500" in win.logs._shift_note.cget("text")
+    win.logs._apply_shift()
+    assert float(win.logs.shift_ms.get()) == 500.0           # rounded to the spinbox step
+    wait_loaded(win)
+    assert all(log.shift_rows == 8 for log in win.session.logs.values())   # 500 ms @ 15.6 Hz
+
+
 def test_canvas_texts_have_explicit_fill(win):
     # macOS Dark Mode: canvas text without an explicit fill defaults to systemTextColor
     # (white) -> invisible on the white canvases (axis labels, slider labels)
