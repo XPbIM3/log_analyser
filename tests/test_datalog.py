@@ -40,54 +40,13 @@ def test_load_metadata(msl):
 
 def test_shift_next_row(msl):
     raw = Log.load(msl, shift=0)
-    log = Log.load(msl, shift=1)
+    log = Log.load(msl)
     assert len(raw) == 5 and len(log) == 4
     np.testing.assert_allclose(log.column("AFR"), raw.column("AFR")[1:])
     np.testing.assert_allclose(log.column("Lambda"), raw.column("Lambda")[1:])
     # inputs stay on their own row
     np.testing.assert_array_equal(log.column("RPM"), raw.column("RPM")[:-1])
     np.testing.assert_array_equal(log.column("AFR Target"), raw.column("AFR Target")[:-1])
-
-
-def test_shift_ms_default(msl):
-    # DEFAULT_DELAY_MS = 270 ms at the fixture's dt = 0.067 s -> 4 rows
-    raw = Log.load(msl, shift=0)
-    log = Log.load(msl)
-    assert len(log) == 1
-    np.testing.assert_allclose(log.column("AFR"), raw.column("AFR")[4:])
-    np.testing.assert_allclose(log.column("Lambda"), raw.column("Lambda")[4:])
-    # inputs stay on their own row
-    np.testing.assert_array_equal(log.column("RPM"), raw.column("RPM")[:1])
-    np.testing.assert_array_equal(log.column("AFR Target"), raw.column("AFR Target")[:1])
-
-
-def test_shift_ms_converts_by_time_step(tmp_path):
-    # 1 s step: 270 ms is under one row -> no shift
-    r = [(float(i), 1000 + 100 * i, 50, 14 + i * 0.1, round((14 + i * 0.1) / 14.7, 3),
-          14.0, 60, "Inactive") for i in range(3)]
-    log = Log.load(write_msl(tmp_path / "t.msl", r))
-    assert len(log) == 3
-    np.testing.assert_allclose(log.column("AFR"), [14.0, 14.1, 14.2])
-
-
-def test_shift_ms_zero_disables(msl):
-    assert len(Log.load(msl, shift_ms=0)) == 5
-
-
-def test_rate_hz_and_shift_rows(msl):
-    log = Log.load(msl)
-    assert log.rate_hz == pytest.approx(1 / 0.067, rel=1e-3)
-    assert log.shift_rows == 4
-    log0 = Log.load(msl, shift=0)
-    assert log0.shift_rows == 0 and log0.rate_hz == log.rate_hz
-
-
-def test_rate_hz_through_replace_and_concat(tmp_path):
-    a = Log.load(write_msl(tmp_path / "a.msl", rows(5)))
-    b = Log.load(write_msl(tmp_path / "b.msl", rows(3)))
-    assert a.where(a.column("RPM") > 0).rate_hz == a.rate_hz
-    joined = Log.concat([a, b])
-    assert joined.rate_hz is None and joined.shift_rows == 0      # per-file values
 
 
 def test_shift_two_and_custom_columns(msl):
@@ -98,8 +57,6 @@ def test_shift_two_and_custom_columns(msl):
     np.testing.assert_allclose(log.column("Lambda"), raw.column("Lambda")[:3])
     with pytest.raises(LogError):
         Log.load(msl, shift=-1)
-    with pytest.raises(LogError):
-        Log.load(msl, shift_ms=-1)
 
 
 def test_shift_ignores_missing_columns(tmp_path):
@@ -110,7 +67,7 @@ def test_shift_ignores_missing_columns(tmp_path):
 def test_no_units_row(tmp_path):
     p = tmp_path / "c.msl"
     p.write_text("Time\tRPM\tAFR\n0\t1000\t14\n1\t1100\t15\n")
-    log = Log.load(p, shift=1)
+    log = Log.load(p)
     assert log.units == {} and len(log) == 1 and log.column("AFR")[0] == 15
 
 
@@ -140,8 +97,8 @@ def test_column_access(msl):
 # ------------------------------------------------------------------ concat
 
 def test_concat_same(tmp_path):
-    a = Log.load(write_msl(tmp_path / "a.msl", rows(5)), shift=1)
-    b = Log.load(write_msl(tmp_path / "b.msl", rows(3, afr0=15)), shift=1)
+    a = Log.load(write_msl(tmp_path / "a.msl", rows(5)))
+    b = Log.load(write_msl(tmp_path / "b.msl", rows(3, afr0=15)))
     c = Log.concat([a, b])
     assert len(c) == 4 + 2
     assert c.data.index.tolist() == list(range(6))
@@ -177,7 +134,7 @@ def test_concat_errors(tmp_path):
 def test_load_many_orders_by_date(tmp_path):
     write_msl(tmp_path / "1.msl", rows(3, afr0=15), date="Thu Sep 19 02:00:00 YEKT 2024")
     write_msl(tmp_path / "2.msl", rows(3, afr0=14), date="Thu Sep 19 01:00:00 YEKT 2024")
-    log = Log.load_many(str(tmp_path / "*.msl"), shift=1)
+    log = Log.load_many(str(tmp_path / "*.msl"))
     assert log.data["source"].tolist()[0] == "2.msl"
     with pytest.raises(LogError, match="no log files"):
         Log.load_many(str(tmp_path / "*.nope"))
@@ -186,7 +143,7 @@ def test_load_many_orders_by_date(tmp_path):
 # ------------------------------------------------------------------ where
 
 def test_where(msl):
-    log = Log.load(msl, shift=1)
+    log = Log.load(msl)
     a = log.where(log.column("RPM") > 1100)
     b = log.where(lambda d: d.RPM > 1100)
     assert a.column("RPM").tolist() == b.column("RPM").tolist() == [1200, 1300]
@@ -207,7 +164,7 @@ def test_where_errors(msl):
 # ------------------------------------------------------------------ CORR
 
 def test_corr_from_log_column(msl):
-    log = Log.load(msl, shift=1).with_corr("AFR Target")
+    log = Log.load(msl).with_corr("AFR Target")
     np.testing.assert_allclose(log.column("CORR"), log.column("AFR") / 14.0)
     np.testing.assert_allclose(log.column("CORR_target"), 14.0)
 
@@ -216,7 +173,7 @@ def test_corr_from_table(msl):
     x = RpmAxis([1000, 2000])
     y = KpaAxis([40, 100])
     afr = Table(TableKind.AFR, x, y, [[15.0, 15.0], [12.0, 12.0]])
-    log = Log.load(msl, shift=1).with_corr(afr)
+    log = Log.load(msl).with_corr(afr)
     expected_target = 15.0 - 3.0 * (log.column("MAP") - 40) / 60
     np.testing.assert_allclose(log.column("CORR_target"), expected_target)
     np.testing.assert_allclose(log.column("CORR"), log.column("AFR") / expected_target)
@@ -224,12 +181,12 @@ def test_corr_from_table(msl):
 
 def test_corr_lambda_table(msl):
     lam = Table(TableKind.LAMBDA, RpmAxis([1000, 2000]), KpaAxis([40, 100]), np.ones((2, 2)))
-    log = Log.load(msl, shift=1).with_corr(lam, name="K")
+    log = Log.load(msl).with_corr(lam, name="K")
     np.testing.assert_allclose(log.column("K"), log.column("Lambda"))
 
 
 def test_corr_errors(msl):
-    log = Log.load(msl, shift=1)
+    log = Log.load(msl)
     ve = Table(TableKind.VE, RpmAxis([1000, 2000]), KpaAxis([40, 100]), np.ones((2, 2)))
     with pytest.raises(LogError, match="AFR or LAMBDA"):
         log.with_corr(ve)
@@ -281,7 +238,7 @@ def test_mark_lines_skipped_and_kept(tmp_path):
 def test_shift_does_not_cross_marks(tmp_path):
     # segments: rows 0-2 | 3-4 | 5 ; shift=1 drops the last row of every segment
     p = _with_marks(write_msl(tmp_path / "m.msl", rows(6)), {2: ["RESET", "Going Online"], 4: ["Manual"]})
-    log = Log.load(p, shift=1)
+    log = Log.load(p)
     afr = [r[3] for r in rows(6)]
     assert log.column("Time").tolist() == pytest.approx([r[0] for r in rows(6)][:2] + [rows(6)[3][0]])
     assert log.column("AFR").tolist() == pytest.approx([afr[1], afr[2], afr[4]])
@@ -326,7 +283,7 @@ def _write_sync(path, n, counter, **kw):
 
 def test_sync_loss_increments(tmp_path):
     # counter 0 0 1 1 2 0: +1 twice, then an ECU reset (drop -> 0)
-    log = Log.load(_write_sync(tmp_path / "s.msl", 6, [0, 0, 1, 1, 2, 0]), shift=1)
+    log = Log.load(_write_sync(tmp_path / "s.msl", 6, [0, 0, 1, 1, 2, 0]))
     assert log.column("SyncLoss+").tolist() == [0, 0, 1, 0, 1]   # last row dropped by the shift
     assert log.column("SyncLoss+").dtype.kind == "i"
 
@@ -336,13 +293,13 @@ def test_sync_loss_on_dropped_row_survives(tmp_path):
     # the jump must still show up on the next kept row (3)
     p = _with_marks(_write_sync(tmp_path / "m.msl", 6, [0, 1, 2, 2, 3, 3]),
                     {2: ["Going Offline"], 4: ["Manual"]})
-    log = Log.load(p, shift=1)
+    log = Log.load(p)
     assert log.column("SyncLoss+").tolist() == [0, 1, 1]
 
 
 def test_sync_loss_not_across_files(tmp_path):
-    a = Log.load(_write_sync(tmp_path / "a.msl", 4, [0, 1, 2, 3]), shift=1)
-    b = Log.load(_write_sync(tmp_path / "b.msl", 2, [5, 5]), shift=1)     # continues the count
+    a = Log.load(_write_sync(tmp_path / "a.msl", 4, [0, 1, 2, 3]))
+    b = Log.load(_write_sync(tmp_path / "b.msl", 2, [5, 5]))     # continues the count
     joined = Log.concat([a, b])
     # b starts at 5 while a's last kept row has 2: a post-concat diff would add a fake +3
     assert joined.column("SyncLoss+").tolist() == [0, 1, 1, 0]
@@ -350,5 +307,5 @@ def test_sync_loss_not_across_files(tmp_path):
 
 
 def test_sync_loss_column_absent(tmp_path):
-    log = Log.load(write_msl(tmp_path / "p.msl", rows(4)), shift=1)
+    log = Log.load(write_msl(tmp_path / "p.msl", rows(4)))
     assert "SyncLoss+" not in log.columns
