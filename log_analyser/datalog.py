@@ -54,7 +54,8 @@ class Log:
 
     def __init__(self, data: pd.DataFrame, sources: Sequence[str] = (), signature: str = "",
                  firmware: str = "", capture_date: str = "", units: dict[str, str] | None = None,
-                 marks: Sequence[tuple[float, str]] = ()) -> None:
+                 marks: Sequence[tuple[float, str]] = (), rate_hz: float | None = None,
+                 shift_rows: int = 0) -> None:
         self.data = data
         self.sources = tuple(sources)
         self.signature = signature
@@ -63,6 +64,8 @@ class Log:
         self.units = dict(units or {})
         # TunerStudio "MARK nnn - ..." lines: (Time of the last data row before the mark, text)
         self.marks = tuple(marks)
+        self.rate_hz = rate_hz          # logging rate detected from the Time column, Hz
+        self.shift_rows = shift_rows    # mixture rows the shift actually moved
 
     # ------------------------------------------------------------------ import
 
@@ -79,7 +82,8 @@ class Log:
         without a value after the shift are dropped.
 
         ``shift`` (in rows) overrides the conversion; ``shift=0`` or ``shift_ms=0``
-        disables the shift.
+        disables the shift. The detected logging rate and the applied shift are
+        kept in :attr:`rate_hz` and :attr:`shift_rows`.
 
         When the log has the cumulative ``Sync Loss #`` counter, a derived per-row
         column ``SyncLoss+`` is added: by how much the counter went up on this row
@@ -171,14 +175,17 @@ class Log:
         mark_list = [(float(time[i - 1]) if time is not None and i > 0 else float("nan"), text)
                      for i, text in marks]
 
+        rate_hz: float | None = None
+        if time is not None:
+            d = np.diff(np.asarray(time, dtype=float))
+            d = d[np.isfinite(d) & (d > 0)]
+            if d.size:
+                rate_hz = 1.0 / float(np.median(d))
         rows = shift
         if rows is None:
             rows = 0
-            if shift_ms and time is not None:
-                d = np.diff(np.asarray(time, dtype=float))
-                d = d[np.isfinite(d) & (d > 0)]
-                if d.size:
-                    rows = int(np.floor(shift_ms / 1000.0 / float(np.median(d)) + 0.5))
+            if shift_ms and rate_hz:
+                rows = int(np.floor(shift_ms / 1000.0 * rate_hz + 0.5))
         if rows:
             cols = [c for c in shift_columns if c in df.columns]
             if cols:
@@ -196,7 +203,8 @@ class Log:
         df[SOURCE_COLUMN] = os.path.basename(path)
 
         return cls(df, sources=(path,), signature=signature, firmware=firmware,
-                   capture_date=capture_date, units=units, marks=mark_list)
+                   capture_date=capture_date, units=units, marks=mark_list,
+                   rate_hz=rate_hz, shift_rows=rows)
 
     @classmethod
     def load_many(cls, pattern: str | Sequence[str | os.PathLike], columns: str = "same", **load_kwargs) -> "Log":
@@ -247,6 +255,7 @@ class Log:
                 if k in common:
                     units.setdefault(k, v)
         first = logs[0]
+        # rate_hz / shift_rows belong to a single file; a combined log has none
         return cls(data, sources=[s for l in logs for s in l.sources], signature=first.signature,
                    firmware=first.firmware, capture_date=first.capture_date, units=units,
                    marks=[m for l in logs for m in l.marks])
@@ -314,4 +323,5 @@ class Log:
 
     def _replace(self, data: pd.DataFrame) -> "Log":
         return Log(data, sources=self.sources, signature=self.signature, firmware=self.firmware,
-                   capture_date=self.capture_date, units=self.units, marks=self.marks)
+                   capture_date=self.capture_date, units=self.units, marks=self.marks,
+                   rate_hz=self.rate_hz, shift_rows=self.shift_rows)

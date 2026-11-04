@@ -1,11 +1,13 @@
 import os
+import sys
 
 import numpy as np
 import pytest
 
 tk = pytest.importorskip("tkinter")
 
-if os.name != "nt" and not os.environ.get("DISPLAY"):
+# Tk on Windows (nt) and macOS (Cocoa) does not need X11; elsewhere require DISPLAY
+if os.name != "nt" and sys.platform != "darwin" and not os.environ.get("DISPLAY"):
     pytest.skip("no display", allow_module_level=True)
 
 from log_analyser import afr_curve  # noqa: E402

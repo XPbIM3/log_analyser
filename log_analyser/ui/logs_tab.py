@@ -8,12 +8,13 @@ from tkinter import filedialog, messagebox, ttk
 
 import numpy as np
 
-from ..datalog import Log
+from ..datalog import DEFAULT_DELAY_MS, Log
 from ..tune import Tune
 from .session import Session
 
 POLL_MS = 100
 PAUSE_S = 5.0          # a gap between rows longer than this counts as a pause (offline, ECU off)
+RELOAD_DELAY_MS = 500  # debounce for applying a new shift value
 
 
 def duration_text(log: Log) -> str:
@@ -55,10 +56,25 @@ class LogsTab(ttk.Frame):
         ttk.Button(bar, text="Удалить выбранные", command=self.remove_selected).pack(side=tk.LEFT, padx=6)
         ttk.Button(bar, text="Очистить", command=self.clear).pack(side=tk.LEFT)
 
-        cols = ("file", "date", "rows", "duration", "fw", "status")
+        shift_bar = ttk.Frame(logs_box)
+        shift_bar.pack(fill=tk.X, pady=(6, 0))
+        ttk.Label(shift_bar, text="Сдвиг смеси, мс:").pack(side=tk.LEFT)
+        self.shift_ms = tk.DoubleVar(value=DEFAULT_DELAY_MS)
+        self._applied_shift = DEFAULT_DELAY_MS
+        self._reload_job: str | None = None
+        spin = ttk.Spinbox(shift_bar, from_=0, to=2000, increment=10, width=7,
+                           textvariable=self.shift_ms, command=self.schedule_reload)
+        spin.bind("<Return>", self.schedule_reload)
+        spin.bind("<FocusOut>", self.schedule_reload)
+        spin.pack(side=tk.LEFT, padx=(6, 12))
+        ttk.Label(shift_bar, foreground="#555555",
+                  text=f"рекомендация: {DEFAULT_DELAY_MS:.0f} мс (замер на протягах ~15 Гц) — "
+                       "ряды = сдвиг ÷ герцовка файла").pack(side=tk.LEFT)
+
+        cols = ("file", "date", "hz", "rows", "duration", "fw", "status")
         self.tree = ttk.Treeview(logs_box, columns=cols, show="headings", selectmode="extended")
         for cid, text, width, anchor in (
-            ("file", "Файл", 260, "w"), ("date", "Дата записи", 200, "w"),
+            ("file", "Файл", 260, "w"), ("date", "Дата записи", 200, "w"), ("hz", "Гц", 55, "e"),
             ("rows", "Строк", 80, "e"), ("duration", "Длит., мин", 130, "e"),
             ("fw", "Прошивка", 200, "w"), ("status", "Статус", 260, "w"),
         ):
@@ -107,8 +123,40 @@ class LogsTab(ttk.Frame):
             p = os.path.normpath(p)
             if p in self.session.logs or p in self._pending:
                 continue
-            self.tree.insert("", tk.END, iid=p, values=(os.path.basename(p), "", "", "", "", "загрузка…"))
-            self._pending[p] = self._pool.submit(Log.load, p)
+            self.tree.insert("", tk.END, iid=p,
+                             values=(os.path.basename(p), "", "", "", "", "", "загрузка…"))
+            self._pending[p] = self._pool.submit(Log.load, p, shift_ms=self._applied_shift)
+        if self._pending:
+            self.after(POLL_MS, self._poll)
+
+    def schedule_reload(self, _event=None) -> None:
+        """The shift value changed: re-read all files (debounced)."""
+        try:
+            value = float(self.shift_ms.get())
+        except (ValueError, tk.TclError):
+            return                     # half-typed value: keep what is applied
+        if value < 0 or value == self._applied_shift:
+            return
+        if self._reload_job is not None:
+            self.after_cancel(self._reload_job)
+        self._reload_job = self.after(RELOAD_DELAY_MS, self.reload_all)
+
+    def reload_all(self) -> None:
+        """Re-read every loaded file with the current shift value."""
+        if self._reload_job is not None:
+            self.after_cancel(self._reload_job)
+            self._reload_job = None
+        try:
+            value = float(self.shift_ms.get())
+        except (ValueError, tk.TclError):
+            return
+        value = max(0.0, value)
+        self._applied_shift = value
+        for p in set(self.session.logs) | set(self._pending):
+            if not self.tree.exists(p):
+                continue
+            self.tree.item(p, values=(os.path.basename(p), "", "", "", "", "", "перечитывается…"))
+            self._pending[p] = self._pool.submit(Log.load, p, shift_ms=value)
         if self._pending:
             self.after(POLL_MS, self._poll)
 
@@ -122,11 +170,13 @@ class LogsTab(ttk.Frame):
             try:
                 log = fut.result()
             except Exception as e:  # noqa: BLE001 - show any load error in the list
-                self.tree.item(p, values=(os.path.basename(p), "", "", "", "", f"ошибка: {e}"))
+                self.tree.item(p, values=(os.path.basename(p), "", "", "", "", "", f"ошибка: {e}"))
                 continue
             dur = duration_text(log)
-            self.tree.item(p, values=(os.path.basename(p), log.capture_date, len(log), dur,
-                                      log.firmware, "ок"))
+            hz = f"{log.rate_hz:.1f}" if log.rate_hz else ""
+            status = f"ок · сдвиг {log.shift_rows} ряд." if log.shift_rows else "ок"
+            self.tree.item(p, values=(os.path.basename(p), log.capture_date, hz, len(log), dur,
+                                      log.firmware, status))
             self.session.add_log(p, log)
         self._update_summary()
         if self._pending:

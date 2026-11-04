@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 from pathlib import Path
 
@@ -7,7 +8,8 @@ import pytest
 
 tk = pytest.importorskip("tkinter")
 
-if os.name != "nt" and not os.environ.get("DISPLAY"):
+# Tk on Windows (nt) and macOS (Cocoa) does not need X11; elsewhere require DISPLAY
+if os.name != "nt" and sys.platform != "darwin" and not os.environ.get("DISPLAY"):
     pytest.skip("no display", allow_module_level=True)
 
 from log_analyser.ui.app import MainWindow  # noqa: E402
@@ -56,6 +58,38 @@ def test_sync_loss_map(win):
     win.sync.axes_src.set("ve")
     win.sync.refresh()
     assert int(np.nansum(win.sync.grid_result.values)) == 1
+
+
+def test_shift_ms_control(win):
+    msl = sorted(str(p) for p in FIXTURES.glob("*.msl"))
+    if not msl:
+        pytest.skip("no sample logs")
+    win.logs.load_logs(msl)
+    wait_loaded(win)
+    assert float(win.logs.shift_ms.get()) == 270.0            # recommended default
+    items = win.logs.tree.get_children()
+    assert all(win.logs.tree.item(i, "values")[2] for i in items)          # Гц detected
+    assert all(l.shift_rows == 4 and l.rate_hz == pytest.approx(15.6, rel=0.02)
+               for l in win.session.logs.values())
+    rows_default = {i: int(win.logs.tree.item(i, "values")[3]) for i in items}
+
+    win.logs.shift_ms.set(0)
+    win.logs.reload_all()
+    wait_loaded(win)
+    rows_off = {i: int(win.logs.tree.item(i, "values")[3]) for i in items}
+    assert all(rows_off[i] > rows_default[i] for i in items)   # no rows dropped
+    assert all(l.shift_rows == 0 for l in win.session.logs.values())
+
+    win.logs.shift_ms.set(540)
+    win.logs.schedule_reload()                                 # debounced path
+    end = time.time() + 5
+    while time.time() < end and (win.logs._reload_job is not None or win.logs._pending):
+        win.update()
+        time.sleep(0.02)
+    assert not win.logs._pending and win.logs._reload_job is None
+    assert all(l.shift_rows == 8 for l in win.session.logs.values())
+    rows_big = {i: int(win.logs.tree.item(i, "values")[3]) for i in items}
+    assert all(rows_big[i] < rows_default[i] for i in items)
 
 
 def test_canvas_texts_have_explicit_fill(win):

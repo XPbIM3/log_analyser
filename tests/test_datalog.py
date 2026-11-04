@@ -74,6 +74,22 @@ def test_shift_ms_zero_disables(msl):
     assert len(Log.load(msl, shift_ms=0)) == 5
 
 
+def test_rate_hz_and_shift_rows(msl):
+    log = Log.load(msl)
+    assert log.rate_hz == pytest.approx(1 / 0.067, rel=1e-3)
+    assert log.shift_rows == 4
+    log0 = Log.load(msl, shift=0)
+    assert log0.shift_rows == 0 and log0.rate_hz == log.rate_hz
+
+
+def test_rate_hz_through_replace_and_concat(tmp_path):
+    a = Log.load(write_msl(tmp_path / "a.msl", rows(5)))
+    b = Log.load(write_msl(tmp_path / "b.msl", rows(3)))
+    assert a.where(a.column("RPM") > 0).rate_hz == a.rate_hz
+    joined = Log.concat([a, b])
+    assert joined.rate_hz is None and joined.shift_rows == 0      # per-file values
+
+
 def test_shift_two_and_custom_columns(msl):
     raw = Log.load(msl, shift=0)
     log = Log.load(msl, shift=2, shift_columns=("AFR",))
