@@ -16,6 +16,13 @@ from .table import Table, TableKind
 Condition = Union[np.ndarray, pd.Series, Callable[[pd.DataFrame], Union[np.ndarray, pd.Series]]]
 
 DEFAULT_SHIFT_COLUMNS = ("AFR", "Lambda")
+
+# Measured on WOT pulls: the Target-vs-mixture correlation peaks at 4 rows at the
+# log's ~15 Hz rate (~270 ms). Exhaust transport is small at WOT; the wideband
+# sensor and its controller lag dominate. Converted to whole rows via the log's
+# median Time step, so it stays right if the logging rate changes.
+DEFAULT_DELAY_MS = 270.0
+
 SOURCE_COLUMN = "source"
 MARK_PREFIX = "MARK "
 
@@ -60,14 +67,19 @@ class Log:
     # ------------------------------------------------------------------ import
 
     @classmethod
-    def load(cls, path: str | os.PathLike, shift: int = 1,
+    def load(cls, path: str | os.PathLike, shift: int | None = None,
+             shift_ms: float | None = DEFAULT_DELAY_MS,
              shift_columns: Iterable[str] = DEFAULT_SHIFT_COLUMNS) -> "Log":
         """Read a TunerStudio .msl file.
 
-        By default the mixture columns (``AFR``, ``Lambda``) are shifted one row up:
-        row ``i`` gets the mixture measured in row ``i + shift`` — the engine's
-        response to the parameters (VE, PW, ...) of row ``i``. Rows left without a
-        value after the shift are dropped. ``shift=0`` disables it.
+        By default the mixture columns (``AFR``, ``Lambda``) are shifted up so that
+        row ``i`` gets the mixture measured ``shift_ms`` later — the engine's
+        response to the parameters (VE, PW, ...) of row ``i``. The delay is
+        converted to whole rows via the log's median ``Time`` step. Rows left
+        without a value after the shift are dropped.
+
+        ``shift`` (in rows) overrides the conversion; ``shift=0`` or ``shift_ms=0``
+        disables the shift.
 
         When the log has the cumulative ``Sync Loss #`` counter, a derived per-row
         column ``SyncLoss+`` is added: by how much the counter went up on this row
@@ -79,8 +91,10 @@ class Log:
         value never crosses a reconnect/reset gap.
         """
         path = os.fspath(path)
-        if shift < 0:
+        if shift is not None and shift < 0:
             raise LogError(f"{path}: shift must be >= 0, got {shift}")
+        if shift_ms is not None and shift_ms < 0:
+            raise LogError(f"{path}: shift_ms must be >= 0, got {shift_ms}")
         try:
             with open(path, "r", encoding="latin-1") as f:
                 lines = f.read().splitlines()
@@ -157,11 +171,19 @@ class Log:
         mark_list = [(float(time[i - 1]) if time is not None and i > 0 else float("nan"), text)
                      for i, text in marks]
 
-        if shift:
+        rows = shift
+        if rows is None:
+            rows = 0
+            if shift_ms and time is not None:
+                d = np.diff(np.asarray(time, dtype=float))
+                d = d[np.isfinite(d) & (d > 0)]
+                if d.size:
+                    rows = int(np.floor(shift_ms / 1000.0 / float(np.median(d)) + 0.5))
+        if rows:
             cols = [c for c in shift_columns if c in df.columns]
             if cols:
                 grouped = df[cols].groupby(np.asarray(segments), sort=False)
-                df[cols] = grouped.shift(-shift)
+                df[cols] = grouped.shift(-rows)
                 df = df.dropna(subset=cols)
         df = df.reset_index(drop=True)
         if SYNC_LOSS_SOURCE in df.columns:
