@@ -113,6 +113,19 @@ def test_no_logs_message(win):
     assert win.corr.grid_result is None
 
 
+def test_corr_colors_red_is_lean(win):
+    # red = leaner than target (add fuel), blue = richer (remove fuel) — user-facing
+    # legend must not drift away from the cmap direction again
+    msl = sorted(str(p) for p in FIXTURES.glob("*.msl"))
+    if not msl:
+        pytest.skip("no sample logs")
+    win.logs.load_logs(msl)
+    wait_loaded(win)
+    win.corr.refresh()
+    assert win.corr.view._data[5] == "RdBu_r"                  # cmap: high CORR -> red
+    assert "красный — беднее" in win.corr.view._data[4]        # legend says the same
+
+
 def test_logs_tune_and_correction(win):
     msl = sorted(str(p) for p in FIXTURES.glob("*.msl"))
     if not msl:

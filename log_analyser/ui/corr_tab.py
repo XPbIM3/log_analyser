@@ -63,7 +63,7 @@ class CorrTab(ttk.Frame):
         right.grid(row=0, column=1, sticky="nsew")
         paned = ttk.PanedWindow(right, orient=tk.VERTICAL)
         paned.pack(fill=tk.BOTH, expand=True)
-        self.view = TableGrid(paned, cmap="RdBu", on_click=self._cell_clicked)
+        self.view = TableGrid(paned, cmap="RdBu_r", on_click=self._cell_clicked)
         self.cell_panel = CellPanel(paned)
         paned.add(self.view, weight=3)
         paned.add(self.cell_panel, weight=2)
@@ -324,15 +324,16 @@ class CorrTab(ttk.Frame):
             new = self.ve_new.values
             texts = [[f"{new[i, j]:.0f}" for j in range(new.shape[1])] for i in range(new.shape[0])]
             rest = "из тюна" if self.ve_base is not None else "0, тюн не загружен"
-            self.view.show_grid(g.x, g.y, corr_colors, texts, cmap="RdBu",
+            self.view.show_grid(g.x, g.y, corr_colors, texts, cmap="RdBu_r",
                                 vmin=1 - CORR_SPAN, vmax=1 + CORR_SPAN,
                                 title=f"VE новый: посчитано {int(valid.sum())} из {valid.size} ячеек "
-                                      f"(цвет — коррекция); серые — {rest}")
+                                      f"(цвет — коррекция: красный — беднее, синий — богаче); серые — {rest}")
             return
         texts = [[f"{(v - 1) * 100:+.1f}" if np.isfinite(v) else "" for v in row] for row in g.values]
-        self.view.show_grid(g.x, g.y, corr_colors, texts, cmap="RdBu",
+        self.view.show_grid(g.x, g.y, corr_colors, texts, cmap="RdBu_r",
                             vmin=1 - CORR_SPAN, vmax=1 + CORR_SPAN,
-                            title=f"Коррекция топлива, % ({g.stat}); красный — богаче цели, синий — беднее")
+                            title=f"Коррекция топлива, % ({g.stat}); красный — беднее цели (добавить топлива), "
+                                  f"синий — богаче (снять)")
 
     def _cell_clicked(self, i: int, j: int) -> None:
         g = self.grid_result
