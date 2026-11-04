@@ -8,8 +8,9 @@ bias), correlation of first differences (per segment, free of slow trends) and
 the mean absolute target error after removing the per-section trend (a raw |error|
 curve goes flat when the bias dominates the target wiggle, and a slow drift slides
 its minimum along the scan). An estimate is "confident" when the level peak is
-strong and at least one of the two other estimators corroborates it (and the peak
-is not at the edge of the scan); otherwise the caller gets "weak" or
+strong and at least one of the two other estimators corroborates it with a
+meaningful peak of its own (both optima inside the scan); otherwise the caller
+gets "weak" or
 "none" with the reason — never a silent guess.
 """
 from __future__ import annotations
@@ -22,9 +23,16 @@ import numpy as np
 from .datalog import Log
 
 MIN_POINTS = 100       # filtered rows needed for a meaningful correlation
+MIN_SEGMENT = 8        # rows a shifted segment must keep to contribute (shorter ones
+                       # yield degenerate correlations: |r| = 1 on 2-3 points)
 TARGET_STD = 0.05      # AFR: the target must vary by at least this much (std)
 MIN_CORR = 0.10        # below this the mixture simply does not follow the target
-CONFIDENT_CORR = 0.20  # peak height required for a confident estimate
+CONFIDENT_CORR = 0.40  # peak height required for a confident estimate (on real logs
+                       # the reliability boundary sits near 0.45: peaks below ~0.4
+                       # scatter across thresholds and leave-one-run-out checks)
+MIN_DIFF_CORR = 0.15   # the difference estimator may corroborate only when its own
+                       # maximum is meaningful: on real logs its curve peaks at
+                       # 0.02-0.13 (noise) while a working one reaches 0.5+
 SCAN_SECONDS = 0.8     # scan shifts up to this delay
 TRIM_SECONDS = 0.25    # throttle-transient rows trimmed at the edges of every section
 
@@ -42,6 +50,8 @@ class ShiftEstimate:
     reason: str = ""               # why not confident / none (human-readable)
     n: int = 0                     # filtered rows used
     section: str = ""              # which rows were scanned: "WOT" or "движение"
+    at_edge: bool = False          # True when the best k sits at the scan edge (kmax):
+                                   # the delay may be larger, or the curve may be a drift
     table: list[tuple[int, float, float, float]] = field(default_factory=list)
     # table: per k -> (level corr, difference corr, mean |mixture - target|)
 
@@ -52,11 +62,30 @@ def scan_file(path: str) -> ShiftEstimate:
 
 
 def _detrend(v: np.ndarray) -> np.ndarray:
-    """Remove a quadratic trend: within a section the mixture drifts (richer to the
-    top end), and that drift flattens or slides the error minimum along the scan.
-    Quadratic, not linear — the drift is nonlinear (it follows the RPM ramp)."""
-    t = np.arange(len(v), dtype=float)
-    return v - np.polyval(np.polyfit(t, v, 2), t)
+    """Remove a slow trend: within a section the mixture drifts (richer to the top end),
+    and that drift flattens or slides the error minimum along the scan. The degree
+    follows the length — a quadratic on a handful of points eats the signal whole
+    (residual ~0 on 2-3 points), which zeroes short segments' error contributions.
+    ``t`` is normalized to avoid the ill-conditioning of raw row indices."""
+    n = len(v)
+    deg = 2 if n >= 16 else (1 if n >= 8 else 0)
+    if deg == 0:
+        return v - v.mean()
+    t = (np.arange(n, dtype=float) - n / 2) / n
+    return v - np.polyval(np.polyfit(t, v, deg), t)
+
+
+def _corroborated(bl: int, bd: int, be: int, dif: np.ndarray, kmax: int) -> bool:
+    """True when a second estimator independently agrees with the level peak.
+
+    A corroborating estimator must (a) have a meaningful response of its own —
+    a difference curve peaking at noise level says nothing even when its argmax
+    is close to bl — and (b) have its optimum inside the scan: an error minimum
+    parked at the edge is unresolved drift, not agreement.
+    """
+    dif_meaningful = float(np.nanmax(dif)) >= MIN_DIFF_CORR
+    return ((dif_meaningful and abs(bl - bd) <= 1 and bd < kmax)
+            or (abs(bl - be) <= 1 and be < kmax))
 
 
 def scan_shift(log: Log) -> ShiftEstimate:
@@ -115,8 +144,8 @@ def scan_shift(log: Log) -> ShiftEstimate:
     for k in range(kmax + 1):
         xs, ys, dxs, dys, errs = [], [], [], [], []
         for r in runs:
-            if len(r) <= k + 1:
-                continue
+            if len(r) - k < MIN_SEGMENT:
+                continue                                        # degenerate at this k
             x, y = tgt_all[r[:len(r) - k]], meas_all[r[k:]]     # target(i) vs mixture(i+k)
             xs.append(x)
             ys.append(y)
@@ -140,21 +169,20 @@ def scan_shift(log: Log) -> ShiftEstimate:
     dif = np.array([t[2] for t in table])
     err = np.array([t[3] for t in table])
     bl, bd, be = int(np.nanargmax(lvl)), int(np.nanargmax(dif)), int(np.nanargmin(err))
+    at_edge = bl == kmax
     est = ShiftEstimate(log.rate_hz, bl, bd, be, delay_ms=bl * 1000.0 / log.rate_hz,
-                        n=n, section=section, table=table)
+                        n=n, section=section, at_edge=at_edge, table=table)
 
     r_peak = float(np.nanmax(lvl))
     if r_peak < MIN_CORR:
         est.reason = f"слабая связь цели и смеси (r_max {r_peak:.2f})"
         return est
-    # a corroborating estimator must itself have its optimum inside the scan: an error
-    # minimum parked at the edge is unresolved drift, not agreement
-    corroborated = (abs(bl - bd) <= 1 and bd < kmax) or (abs(bl - be) <= 1 and be < kmax)
-    if r_peak >= CONFIDENT_CORR and bl < kmax and corroborated:
+    corroborated = _corroborated(bl, bd, be, dif, kmax)
+    if r_peak >= CONFIDENT_CORR and not at_edge and corroborated:
         est.confidence = "confident"
         return est
     est.confidence = "weak"
-    if bl == kmax:
+    if at_edge:
         est.reason = "пик на краю диапазона скана — возможно, задержка больше"
     elif not corroborated:
         est.reason = f"оценщики расходятся (уровень {bl}, разности {bd}, ошибка {be})"
@@ -164,14 +192,24 @@ def scan_shift(log: Log) -> ShiftEstimate:
 
 
 def recommend(estimates: Iterable[ShiftEstimate]) -> tuple[float | None, str]:
-    """Median delay in ms over the files; confident files first, weak as a fallback."""
+    """Median delay in ms over the files; confident files first, weak as a fallback.
+
+    Weak estimates whose peak sits at the scan edge are skipped: their curve is
+    a monotone drift (common for smooth cruise targets), not a resolved delay —
+    the per-file reason already says so.
+    """
     estimates = list(estimates)
     for conf, note in (("confident", "уверенная сходимость по файлам"),
                        ("weak", "только слабые оценки — ориентир, не гарантия")):
-        delays = [e.delay_ms for e in estimates if e.confidence == conf and e.delay_ms is not None]
+        # a zero-row delay is physically impossible for mixture transport — such a
+        # weak level-0 peak is an artifact, not an estimate, and must not vote
+        delays = [e.delay_ms for e in estimates
+                  if e.confidence == conf and not e.at_edge
+                  and e.delay_ms is not None and e.delay_ms > 0]
         if delays:
             text = f"{note} (файлов: {len(delays)})"
-            all_delays = [e.delay_ms for e in estimates if e.delay_ms is not None]
+            all_delays = [e.delay_ms for e in estimates
+                          if not e.at_edge and e.delay_ms is not None and e.delay_ms > 0]
             if max(all_delays) - min(all_delays) > 100.0:
                 text += f"; файлы расходятся на {max(all_delays) - min(all_delays):.0f} мс"
             return float(np.median(delays)), text
