@@ -3,3 +3,7 @@ __pycache__/
 .venv/
 .pytest_cache/
 .DS_Store
+
+# детон-проект (TPIC8101), в репо не входит
+tpic8101.pdf
+tidr519.pdf

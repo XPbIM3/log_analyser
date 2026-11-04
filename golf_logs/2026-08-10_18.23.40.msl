@@ -1,0 +1,4 @@
+"speeduino 202202"
+"Capture Date: Mon Aug 10 18:23:52 YEKT 2026, File author: TunerStudio MS Lite! version 3.3.01"
+Time	SecL	RPM	MAP	MAPxRPM	TPS	AFR	Lambda	IAT	CLT	Engine	DFCO	Gego	Gair	Gbattery	Gwarm	Gbaro	Gammae	Accel Enrich	Current VE	VE1	VE2	PW	AFR Target	Lambda Target	PW2	DutyCycle1	TPS DOT	Advance	Dwell	Battery V	rpm/s	Error #	Error ID	Boost PSI	Boost cut	Hard Launch	Hard Limiter	Idle Control	IAC value	Idle Target RPM	Idle RPM Delta	Baro Pressure	Fan	Sync Loss #	Loops/s	Aux0	Aux1	Aux2	Aux3	Aux4	Aux5	Aux6	Aux7	Aux8	Aux9	Aux10	Aux11	Aux12	Aux13	Aux14	Aux15	Advance 1	Advance 2	FuelLoad	IgnitionLoad
+s	sec	rpm	kpa		%	O2				bits		%	%		%	%	%	%	%	%	%	ms	O2		ms		%/s	deg	ms	V	rpm/s								Steps	RPM		kpa			loops																	deg	deg	kPa	kPa
